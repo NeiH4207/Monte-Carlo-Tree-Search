@@ -70,7 +70,7 @@ def test_env(args):
                     reward_mean.append(np.mean(rewards))
                 
                 # push this exp in ram
-                trainer.model.store(log_p, state_value, reward)
+                trainer.model.store(log_p, state_value, reward, new_observation)
     
                 observation = new_observation                
                 if done:
@@ -82,7 +82,6 @@ def test_env(args):
         # if (_ep + 1) % 10 == 0:
         #     trainer.save_models()
         # print('Completed episodes')
-
 """
 Created on Fri Nov 27 16:00:47 2020
 @author: hien
@@ -95,15 +94,16 @@ def get_args():
     parser.add_argument("--file_name", default = "input.txt")
     parser.add_argument("--type", default = "1")
     parser.add_argument("--run", type=str, default="test_model")   
-    parser.add_argument("--max_size", type=int, default= 5)   
-    parser.add_argument("--min_size", type=int, default= 5)   
+    parser.add_argument("--max_size", type=int, default= 4)   
+    parser.add_argument("--min_size", type=int, default= 4)   
     parser.add_argument("--image_size", type=int, default=84, help="The common width and height for all images")
     parser.add_argument("--batch_size", type=int, default=128, help="The number of state per batch")
     parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
-    parser.add_argument("--lr", type=float, default=3e-3)
-    parser.add_argument("--lr_super", type=float, default=0.0)
-    parser.add_argument("--gamma", type=float, default=0.9)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr_super", type=float, default=0.00)
+    parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--tau", type=float, default=0.01)
+    parser.add_argument("--max_grad_norm", type=float, default=0.3)
     parser.add_argument("--discount", type=float, default=0.999)   
     parser.add_argument("--initial_epsilon", type=float, default=0.1)
     parser.add_argument("--final_epsilon", type=float, default=1e-4)
@@ -119,7 +119,7 @@ def get_args():
     parser.add_argument("--chkpoint", type=str, default='./Models/model.pt')
     parser.add_argument("--show_screen", type=str, default=True)
     parser.add_argument("--load_checkpoint", type=str, default=False)
-    parser.add_argument("--saved_checkpoint", type=str, default=False)   
+    parser.add_argument("--saved_checkpoint", type=str, default=True)   
     
     args, unknown = parser.parse_known_args()
     return args

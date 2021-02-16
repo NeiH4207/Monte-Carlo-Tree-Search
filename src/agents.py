@@ -33,13 +33,14 @@ class Agent():
         self.observation_dim = observation_dim
         self.action_dim = action_dim
         self.use_cuda = torch.cuda.is_available()
-        self.chk_point_file_model = './Models/model.pt'
+        self.chk_point_file_model = './Models/'
         self.value_loss = 0
         self.policy_loss = 0
+        self.n_inputs = 8
         ''' Setup CUDA Environment'''
         self.device = 'cuda' if self.use_cuda else 'cpu'
         
-        self.model = ActorCritic(self.observation_dim, self.action_dim, self.args.lr, self.chk_point_file_model)
+        self.model = ActorCritic(self.n_inputs, self.observation_dim, self.action_dim, self.args.lr, self.chk_point_file_model)
         self.target_model = dcopy(self.model)
         self.model.to(self.device)
         if self.args.load_checkpoint:
@@ -51,27 +52,6 @@ class Agent():
     def set_environment(self, n_agents):
         self.n_agents = n_agents
         
-    def get_exploitation_action(self, state):
-        """
-        gets the action from target actor added with exploration noise
-        :param state: state (Numpy array)
-        :return: sampled action (Numpy array)
-    """
-        state = torch.from_numpy(state).to(self.device)
-        action = self.target_actor.forward(state).detach()
-        return action.to('cpu').data.numpy()
-
-    def get_exploration_action(self, state):
-        """
-        gets the action from actor added with exploration noise
-        :param state: state (Numpy array)
-        :return: sampled action (Numpy array)
-        """
-        state = torch.from_numpy(state).to(self.device)
-        action = self.actor.forward(state)
-        action = action
-        return action
-    
     def convert_one_hot(self, action):
         n_values = self.action_dim
         return np.eye(n_values, dtype = np.float32)[action]
@@ -97,33 +77,27 @@ class Agent():
         y_exp = r + gamma*Q'( s2, pi'(s2))
         y_pred = Q( s1, a1)
         '''
-        y_exp = []
-        policy_loss = []
-        value_loss = []
-        R = 0
-        for r in rewards[::-1]:
-            R = r + self.args.gamma * R
-            y_exp.insert(0, R)
-        y_exp = torch.FloatTensor(y_exp)  
-        # y_exp = (y_exp - y_exp.mean()) / (y_exp.std() + np.finfo(np.float32).eps.item()) 
-        for i in range(len(rewards)):
-            log_prob, exp_reward, pred_reward = log_probs[i], y_exp[i], y_pred[i]  
-            delta = exp_reward.item() - pred_reward
-            policy_loss.append(-log_prob * delta.detach().item())
-            value_loss.append(F.smooth_l1_loss(pred_reward, torch.tensor([exp_reward]).to(self.device)))
-            # print([pred_reward.item(), exp_reward.item()])
-        policy_loss = torch.stack(policy_loss)
-        value_loss = torch.stack(value_loss)
-        loss = policy_loss.mean() + 0.5 * value_loss.mean() - 0.001 * self.model.entropies
-        # print(policy_loss, value_loss, self.model.entropies)
+        gae = torch.zeros(1, 1)
+        for i in reversed(range(len(rewards) - 1)):
+            r = rewards[i + 1]
+            rewards[i] = rewards[i] + self.args.gamma * r
+            gae = gae * self.args.gamma + rewards[i] - y_pred[i] + \
+                (y_pred[i + 1] if i < len(rewards) - 1 else 0)
+        # print(rewards)
+        y_exp = torch.FloatTensor(rewards).unsqueeze(1) 
+        y_pred = torch.stack(y_pred).unsqueeze(1) 
+        log_probs = torch.stack(log_probs).unsqueeze(1)  
+        advantage = y_exp - y_pred
+        policy_loss = (-log_probs * advantage.detach()).mean()
+        value_loss = advantage.pow(2).mean()
+        loss = policy_loss + 0.5 * value_loss - 0.001 * self.model.entropies
         self.model.reset_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
         self.model.optimize()
-        # for parameter in self.model.parameters():
-            # if(parameter.grad is None):
-        #         # print(parameter)
-            # print(parameter.grad)
         self.model.clear()
+        # for parameter in self.model.parameters():
+            # print(parameter.grad)
         self.policy_loss = policy_loss.mean().to('cpu').data.numpy()
         self.value_loss = value_loss.mean().to('cpu').data.numpy()
         
@@ -165,10 +139,9 @@ class Agent():
         # print(policy_loss, value_loss)
         self.model.reset_grad()
         (policy_loss.sum() + value_loss.sum()).backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
         self.model.optimize()
         # for parameter in self.model.parameters():
-            # if(parameter.grad is None):
-        #         # print(parameter)
             # print(parameter.grad)
         self.model.clear()
         self.policy_loss = policy_loss.mean().to('cpu').data.numpy()
@@ -177,7 +150,7 @@ class Agent():
         self.steps_done += 1
         
     def select_action(self, state):
-        state = torch.FloatTensor(state).to(self.device)
+        state = torch.FloatTensor(state).to(self.device).view(1, self.n_inputs, self.args.max_size, -1)
         prob, state_value = self.model(state)
         act = prob.sample()
         if random() < self.random_rate:
@@ -189,7 +162,7 @@ class Agent():
     
     
     def select_action_exp(self, state, action):
-        state = torch.FloatTensor(state).to(self.device)
+        state = torch.FloatTensor(state).to(self.device).view(1, self.n_inputs, self.args.max_size, -1)
         prob, state_value = self.model(state)
         log_p = prob.log_prob(torch.tensor(action).to(self.device))
         self.model.entropies += prob.entropy().mean()
@@ -198,7 +171,7 @@ class Agent():
         
     def select_action_smart(self, state, agent_pos, env):
         score_matrix, agents_matrix, conquer_matrix, \
-                       treasures_matrix, walls_matrix, _ = [dcopy(_) for _ in state]
+                       treasures_matrix, walls_matrix = [dcopy(_) for _ in state]
         actions = [0] * self.n_agents
         state = dcopy(state)
         agent_pos = dcopy(agent_pos)
@@ -287,14 +260,14 @@ class Agent():
         for i in range(self.num_agents):
             actions.append(randint(0, 8))
         return state, actions, [0] * self.num_agents, state 
-        
+    
     def save_models(self):
         """
         saves the target actor and critic models
         :param episode_count: the count of episodes iterated
         :return:        
         """
-        self.model.save_checkpoint()
+        self.model.save_checkpoint(self.agent_name)
         
     def load_models(self):
         """
@@ -302,6 +275,6 @@ class Agent():
         :param episode: the count of episodes iterated (used to find the file name)
         :return:
         """
-        self.model.load_checkpoint()
+        self.model.load_checkpoint(self.agent_name)
         
         self.model.eval()

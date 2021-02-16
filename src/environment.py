@@ -16,6 +16,7 @@ class Environment(object):
         self.score_opponent = 0
         self.old_score = 0
         self.punish = 0
+        self.n_inputs = 7
         self.data = dcopy(input_data)
         self.show_screen = show_screen
         self.screen = Screen(show_screen)
@@ -132,7 +133,7 @@ class Environment(object):
     
     def get_observation(self, player):
         state = dcopy([self.score_matrix, self.agents_matrix, self.conquer_matrix, 
-                       self.treasures_matrix, self.walls_matrix, self.remaining_turns])
+                       self.treasures_matrix, self.walls_matrix])
         if player == 1:
             temp = dcopy(state[1][0])
             state[1][0] = state[1][1]
@@ -169,7 +170,7 @@ class Environment(object):
     
     def compute_score_area(self, state, player):
         area_matrix = []
-        score_matrix, agent_matrix, conquer_matrix, treasures_matrix, walls_matrix, _ = state
+        score_matrix, agent_matrix, conquer_matrix, treasures_matrix, walls_matrix = state
         visit = []
         score = 0
         for i in range(self.MAX_SIZE):
@@ -220,7 +221,7 @@ class Environment(object):
         return score, area_matrix
         
     def compute_score(self, state):
-        score_matrix, agent_matrix, conquer_matrix, treasures_matrix, walls_matrix, _ = state
+        score_matrix, agent_matrix, conquer_matrix, treasures_matrix, walls_matrix = state
         score_title = [0, 0]
         treasure_score = [0, 0]
         for i in range(self.MAX_SIZE):
@@ -284,7 +285,7 @@ class Environment(object):
         
     
     def predict_spread_scores(self, x, y, state, predict, act, area_matrix):
-        score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix, _ = state
+        score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix = state
         score = 0
         discount = 0.02
         reduce_negative = 0.02
@@ -360,7 +361,7 @@ class Environment(object):
         else:
             valid = False
             
-        state = [score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix, self.remaining_turns]
+        state = [score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix]
         score_1, score_2, treasures_score_1, treasures_score_2, area_matrix = self.compute_score(state)
             
         if(predict is False):
@@ -372,7 +373,7 @@ class Environment(object):
         return valid, state, agent_pos[0], score_1 + treasures_score_1 - score_2 - treasures_score_2 + aux_score
     
     def soft_step(self, agent_id, state, act, agent_pos, predict = True):
-        score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix, _ = dcopy(state)
+        score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix = dcopy(state)
         x, y = agent_pos[agent_id][0], agent_pos[agent_id][1]     
         new_pos = (self.next_action(x, y, act))
         _x, _y = new_pos
@@ -395,7 +396,7 @@ class Environment(object):
         else:
             valid = False
             
-        state = [score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix, self.remaining_turns]
+        state = [score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix]
         scores, treasures_scores, area_matrix = self.compute_score(state)
             
         if(predict is False):
@@ -405,7 +406,7 @@ class Environment(object):
                 aux_score += self.predict_spread_scores(_x, _y, state, predict, act, area_matrix)
         reward = scores[0] + treasures_scores[0] - scores[1] - treasures_scores[1] + aux_score
         
-        return valid, state, reward / 100
+        return valid, state, reward
     
     def get_next_action_pos(self, action_1, action_2):
         point_punish = 30
@@ -605,7 +606,7 @@ class Environment(object):
             self.agent_pos[1][i] = [new_pos[1][i][0], new_pos[1][i][1]]
             
         state = [self.score_matrix, self.agents_matrix, self.conquer_matrix, 
-                       self.treasures_matrix, self.walls_matrix, self.remaining_turns]
+                       self.treasures_matrix, self.walls_matrix]
         common_scores, treasure_scores,  area_matrix = self.compute_score(state)
         self.treasure_score[0] += treasure_scores[0]
         self.treasure_score[1] += treasure_scores[1]
@@ -622,13 +623,18 @@ class Environment(object):
         # print(punish, reward)
         self.old_score = reward
         self.remaining_turns -= 1
-        
         if(render):
             self.screen.save_score(self.score_mine, self.score_opponent, self.remaining_turns)
             # print(self.score_mine, self.score_opponent)
         terminal = (self.remaining_turns == 0)
-        self.punish += punish
+        self.punish += punish/1000
+        if not terminal:
+            reward = 0
+        elif self.score_mine < self.score_opponent:
+            reward = -1
+        else:
+            reward = 1
 
-        return [np.array(flatten(state)), reward / 100, terminal, self.remaining_turns]
+        return [np.array(flatten(state)), reward, terminal, self.remaining_turns]
 
         

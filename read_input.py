@@ -1,4 +1,6 @@
 import random
+
+random.seed(1)
             
 class Data():
     
@@ -123,10 +125,10 @@ class Data():
                 score_matrix[i][j] =  value
                 score_matrix[height- i - 1][width- j - 1] = value
         
-        turns = random.randint(10, 30)
+        turns = random.randint(15, 15)
         
         # n_agents = random.randint(2, 8)
-        n_agents = 3
+        n_agents = 1
         agent_pos = [[], []]
         
         
@@ -141,7 +143,7 @@ class Data():
             agent_pos[1]. append( [height - _x - 1, width - _y - 1])
         
             
-        num_treasures = 2
+        num_treasures = 1
         treasures = []
         for j in range(num_treasures):
             _x, _y = random.randint(0, height- 1), random.randint(0, width- 1)
@@ -158,7 +160,7 @@ class Data():
         
                
         # num_walls = random.randint(int(height * width / 30), int(height * width / 20))
-        num_walls = 2
+        num_walls = 1
         
         wall_coords = []
         for j in range(num_walls):
