@@ -57,8 +57,8 @@ class ActorCritic(nn.Module):
         self.checkpoint_file = checkpoint_file
     
     def forward(self, inputs):
-        cx = torch.zeros(1, 256)
-        hx = torch.zeros(1, 256)
+        cx = torch.zeros(1, 256).to(self.device)
+        hx = torch.zeros(1, 256).to(self.device)
         x = F.relu(self.conv1(inputs))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
