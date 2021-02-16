@@ -84,9 +84,9 @@ class Agent():
             # gae = gae * self.args.gamma + rewards[i] - y_pred[i] + \
             #     (y_pred[i + 1] if i < len(rewards) - 1 else 0)
         # print(rewards)
-        y_exp = torch.FloatTensor(rewards).unsqueeze(1) 
-        y_pred = torch.stack(y_pred).unsqueeze(1) 
-        log_probs = torch.stack(log_probs).unsqueeze(1)  
+        y_exp = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
+        y_pred = torch.stack(y_pred).unsqueeze(1).to(self.device)
+        log_probs = torch.stack(log_probs).unsqueeze(1).to(self.device)
         advantage = y_exp - y_pred
         policy_loss = (-log_probs * advantage.detach()).mean()
         value_loss = advantage.pow(2).mean()
