@@ -10,13 +10,12 @@ import collections
 import numpy as np
 
 # Exploration constant
-c_PUCT = 1.38
+c_PUCT = 0.4
 # Dirichlet noise alpha parameter.
 D_NOISE_ALPHA = 0.03
 # Number of steps into the episode after which we always select the
 # action with highest action probability rather than selecting randomly
-TEMP_THRESHOLD = 20
-tau = 1.0
+TEMP_THRESHOLD = 6
 
 
 class DummyNode:
@@ -112,7 +111,7 @@ class MCTSNode:
 
     @property
     def child_U(self):
-        return (c_PUCT * math.sqrt(1 + self.N) *
+        return (c_PUCT * math.sqrt(1 + self.N) * 
                 self.child_prior / (1 + self.child_N))
 
     @property
@@ -141,10 +140,7 @@ class MCTSNode:
             if not current.is_expanded:
                 break
             # Choose action with highest score.
-            if current.player_ID == 0:
-                best_move = np.argmax(current.child_action_score)
-            else:
-                best_move = np.argmin(current.child_action_score)
+            best_move = np.argmax(current.child_action_score)
                 
             current = current.maybe_add_child(best_move)
         return current
@@ -168,30 +164,30 @@ class MCTSNode:
                                              agent_ID=agent_ID)
         return self.children[action]
 
-    def add_virtual_loss(self, up_to):
+    def add_virtual_loss(self, up_to, value = 1):
         """
         Propagate a virtual loss up to a given node.
         :param up_to: The node to propagate until.
         """
         self.n_vlosses += 1
         if self.player_ID == 0:
-            self.W -= 1
+            self.W += value
         else:
-            self.W += 1
+            self.W -= value
         if self.parent is None or self is up_to:
             return
         self.parent.add_virtual_loss(up_to)
 
-    def revert_virtual_loss(self, up_to):
+    def revert_virtual_loss(self, up_to, value = 1):
         """
         Undo adding virtual loss.
         :param up_to: The node to propagate until.
         """
         self.n_vlosses -= 1
         if self.player_ID == 0:
-            self.W += 1
+            self.W -= value
         else:
-            self.W -= 1
+            self.W += value
         if self.parent is None or self is up_to:
             return
         self.parent.revert_virtual_loss(up_to)
@@ -244,7 +240,7 @@ class MCTSNode:
         :param value: Value estimate to be propagated.
         :param up_to: The node to propagate until.
         """
-        if self.player_ID == 0:
+        if self.player_ID == 1:
             self.W += value
         else:
             self.W -= value
@@ -257,7 +253,7 @@ class MCTSNode:
 
     def inject_noise(self):
         dirch = np.random.dirichlet([D_NOISE_ALPHA] * self.n_actions)
-        self.child_prior = self.child_prior * 0.8 + dirch * 0.2
+        self.child_prior = self.child_prior * 0.95 + dirch * 0.05
 
     def visits_as_probs(self, squash=False):
         """
@@ -268,8 +264,7 @@ class MCTSNode:
         """
         probs = self.child_N
         if squash:
-            probs = probs ** tau
-        tau *= 0.995
+            probs = probs ** 0.995
         return probs / (np.sum(probs) + 0.0001)
 
     def print_tree(self, level=0):
@@ -393,10 +388,10 @@ class MCTS:
         ob = self.TreeEnv.get_obs_for_states([self.root.state])
         self.obs.append(ob)
         self.searches_pi.append(
-            self.root.visits_as_probs(True)) # TODO: Use self.root.position.n < self.temp_threshold as argument
+            self.root.visits_as_probs()) # TODO: Use self.root.position.n < self.temp_threshold as argument
         self.qs.append(self.root.Q)
         reward = self.TreeEnv.get_return(self.root.children[action].state,
-                                          self.root.children[action].player_ID)
+                                         self.root.children[action].player_ID)
         self.rewards.append(reward)
 
         # Resulting state becomes new root of the tree.

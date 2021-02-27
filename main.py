@@ -14,7 +14,7 @@ from src.mcts import MCTS
 from collections import deque
 import time
 from src.utils import plot
-from src.model import ActorCritic, ActorCritic_2
+from src.model import Policy, ActorCritic_2
 from src.replay_memory import ReplayMemory
 from src.trainer import Trainer
 
@@ -80,17 +80,14 @@ def execute_episode(agent_netw, num_simulations, env, args):
     
     # Computes the returns at each step from the list of rewards obtained at
     # each step. The return is the sum of rewards obtained *after* the step.
-    ret = [env.get_return(mcts.root.state, mcts.root.player_ID) for _
-           in range(len(mcts.rewards))]
-    
     obs = np.concatenate(mcts.obs)
-    return (obs, mcts.searches_pi, ret)
+    return (obs, mcts.searches_pi,  mcts.rewards)
 
 def train(args): 
     data = Data(args.min_size, args.max_size)
     rand_map = data.get_random_map()
     env = Environment(rand_map, args.show_screen, args.max_size)
-    model = ActorCritic_2(8, 288, action_dim = env.action_dim, lr = args.lr)
+    model = Policy(env, args)
     if args.load_checkpoint:
         model.load_checkpoint(name = args.model_name)
     mem = ReplayMemory(args.replay_memory_size, args.batch_size)
@@ -109,7 +106,7 @@ def train(args):
         for _game in range(args.n_games):
             
             start = time.time()
-            obs, pis, returns = execute_episode(model, 32, env, args)
+            obs, pis, returns = execute_episode(model, 128, env, args)
             mem.add_all([obs, pis, returns])
             batch = mem.sample()
             vl, pl = trainer.train(batch)
@@ -134,7 +131,8 @@ def test(args):
     data = Data(args.min_size, args.max_size)
     rand_map = data.get_random_map()
     env = Environment(rand_map, args.show_screen, args.max_size)
-    model = ActorCritic_2(8, 288, action_dim = env.action_dim, lr = args.lr)
+    # model = ActorCritic_2(8, 288, action_dim = env.action_dim, lr = args.lr)
+    model = ActorCritic_2(8, 128, action_dim = env.action_dim, lr = args.lr)
     model.load_checkpoint(name = args.model_name)
     
     visual_mean_value_3 = deque(maxlen = 5000)
@@ -196,19 +194,18 @@ def test(args):
         if args.saved_checkpoint:
             if _ep % 5 == 0:
                 model.save_checkpoint(args.model_name)
-        # print('Completed episodes')
+        print('Completed episodes')
         env.punish = 0
+        env.reset()
         env = Environment(data.get_random_map(), args.show_screen, args.max_size)
 
 def get_args():
     parser = argparse.ArgumentParser("""Implementation of Deep Q Network to play Procon""")
     parser.add_argument("--file_name", default = "input.txt")
-    parser.add_argument("--type", default = "1")
     parser.add_argument("--run", type=str, default="train")   
     parser.add_argument("--min_size", type=int, default= 6)   
     parser.add_argument("--max_size", type=int, default= 6)   
-    parser.add_argument("--image_size", type=int, default=84, help="The common width and height for all images")
-    parser.add_argument("--batch_size", type=int, default=512, help="The number of state per batch")
+    parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
     parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--lr_super", type=float, default=0.0)
@@ -216,7 +213,8 @@ def get_args():
     parser.add_argument("--tau", type=float, default=0.01)
     parser.add_argument("--max_grad_norm", type=float, default=0.3)
     parser.add_argument("--discount", type=float, default=0.999)   
-    parser.add_argument("--ltv", type=float, default=1.1)   
+    parser.add_argument("--num_channels", type=int, default=64)   
+    parser.add_argument("--dropout", type=float, default=0.3)   
     parser.add_argument("--initial_epsilon", type=float, default=0.1)
     parser.add_argument("--final_epsilon", type=float, default=1e-4)
     parser.add_argument("--num_iters", type=int, default=20000)
@@ -228,10 +226,10 @@ def get_args():
     parser.add_argument("--log_path", type=str, default="tensorboard")
     parser.add_argument("--saved_path", type=str, default="trained_models")
     parser.add_argument("--test_model", type=bool, default=False)
-    parser.add_argument("--chkpoint", type=str, default='./Models/')
+    parser.add_argument("--dir", type=str, default='./Models/')
     parser.add_argument("--model_name", type=str, default='model')
     parser.add_argument("--show_screen", type=str, default=True)
-    parser.add_argument("--load_checkpoint", type=str, default=True)
+    parser.add_argument("--load_checkpoint", type=str, default=False)
     parser.add_argument("--saved_checkpoint", type=str, default=True)   
     
     args, unknown = parser.parse_known_args()

@@ -15,7 +15,7 @@ class ReplayMemory():
         """
 		adds a particular transaction in the memory buffer
         """
-        size = len(rows)
+        size = len(rows[0])
         for i in range(size):
             transition = (rows[0][i], rows[1][i], rows[2][i])
             self.len += 1
