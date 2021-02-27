@@ -20,12 +20,10 @@ MAP_SIZE = 5
 
 class Agent():
     def __init__(self, env, args, agent_name):
-        self.observation_dim = env.observation_dim
-        self.action_dim = env.action_dim
         self.args = args
         self.iter = 0
         self.steps_done = 0
-        self.nrand_action = 0
+        self.n_actions = env.n_actions
         self.learn_step_counter = 0
         self.random_rate = self.args.initial_epsilon
         self.agent_name = agent_name
@@ -152,7 +150,7 @@ class Agent():
         prob = Categorical(prob)
         act = prob.sample()
         if random() < self.random_rate:
-            act = torch.tensor(randint(0, self.action_dim - 1)).to(self.device)
+            act = torch.tensor(randint(0, self.n_actions - 1)).to(self.device)
         log_p = prob.log_prob(act)
         self.model.entropies += prob.entropy().mean()
         act = int(act.to('cpu').numpy())
@@ -169,7 +167,7 @@ class Agent():
         
     def select_action_smart(self, state, agent_pos, env):
         score_matrix, agents_matrix, conquer_matrix, \
-                       treasures_matrix, walls_matrix = [dcopy(_) for _ in state]
+                       treasures_matrix, walls_matrix, _= [dcopy(_) for _ in state]
         actions = [0] * self.n_agents
         state = dcopy(state)
         agent_pos = dcopy(agent_pos)

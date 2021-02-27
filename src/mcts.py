@@ -346,7 +346,7 @@ class MCTS:
             # If we encounter done-state, we do not need the agent network to
             # bootstrap. We can backup the value right away.
             if leaf.is_done():
-                value = self.TreeEnv.get_return(leaf.state, leaf.player_ID)
+                value = self.TreeEnv.get_return(leaf.state, leaf.parent.state, leaf.player_ID)
                 leaf.backup_value(value, up_to=self.root)
                 continue
             # Otherwise, discourage other threads to take the same trajectory
@@ -391,6 +391,7 @@ class MCTS:
             self.root.visits_as_probs()) # TODO: Use self.root.position.n < self.temp_threshold as argument
         self.qs.append(self.root.Q)
         reward = self.TreeEnv.get_return(self.root.children[action].state,
+                                         self.root.state,
                                          self.root.children[action].player_ID)
         self.rewards.append(reward)
 

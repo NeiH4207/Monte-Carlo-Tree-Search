@@ -14,7 +14,7 @@ from src.mcts import MCTS
 from collections import deque
 import time
 from src.utils import plot
-from src.model import Policy, ActorCritic_2
+from src.model import Policy
 from src.replay_memory import ReplayMemory
 from src.trainer import Trainer
 
@@ -73,6 +73,7 @@ def execute_episode(agent_netw, num_simulations, env, args):
             action = mcts.pick_action()
             mcts.take_action(action)
             actions_2[i] = action
+        # print(actions_1, actions_2)
         next_state, final_reward, done, _ = env.step(actions_1, actions_2, args.show_screen)
         mcts.root.state = env.get_state(0, 0)
         if mcts.root.is_done():
@@ -132,7 +133,7 @@ def test(args):
     rand_map = data.get_random_map()
     env = Environment(rand_map, args.show_screen, args.max_size)
     # model = ActorCritic_2(8, 288, action_dim = env.action_dim, lr = args.lr)
-    model = ActorCritic_2(8, 128, action_dim = env.action_dim, lr = args.lr)
+    model = Policy(env, args)
     model.load_checkpoint(name = args.model_name)
     
     visual_mean_value_3 = deque(maxlen = 5000)
@@ -151,11 +152,11 @@ def test(args):
             actions_1 = []
             actions_2 = []
             # update by step
-            soft_state_1 = env.get_observation(0)
+            soft_state_1 = env.get_obs_for_states(env.get_observation(0))[0]
             soft_agent_pos_1 = env.get_agent_pos(0)
             
-            soft_state_2 = env.get_observation(1)
-            soft_agent_pos_2 = env.get_agent_pos(1)
+            # soft_state_2 = env.get_observation(1)
+            # soft_agent_pos_2 = env.get_agent_pos(1)
             # fit for each agent
             for agent_id in range(env.n_agents):
                 agent_state_1 = env.get_obs_for_states([soft_state_1, env.get_agent_state(agent_id, soft_agent_pos_1)])
@@ -203,8 +204,8 @@ def get_args():
     parser = argparse.ArgumentParser("""Implementation of Deep Q Network to play Procon""")
     parser.add_argument("--file_name", default = "input.txt")
     parser.add_argument("--run", type=str, default="train")   
-    parser.add_argument("--min_size", type=int, default= 6)   
-    parser.add_argument("--max_size", type=int, default= 6)   
+    parser.add_argument("--min_size", type=int, default= 10)   
+    parser.add_argument("--max_size", type=int, default= 10)   
     parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
     parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
     parser.add_argument("--lr", type=float, default=1e-4)

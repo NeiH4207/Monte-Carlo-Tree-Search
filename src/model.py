@@ -7,18 +7,11 @@ from torch.distributions import Categorical
 from AdasOptimizer.adasopt_pytorch import Adas
 from torch.optim import Adam, SGD
 from collections import deque
-
-EPS = 0.003
-
-def fanin_init(size, fanin=None):
-	fanin = fanin or size[0]
-	v = 1. / np.sqrt(fanin)
-	return torch.Tensor(size).uniform_(-v, v)
     
 class Policy(nn.Module):
     def __init__(self, env, args, chkpoint_file = 'Models/'):
         # game params
-        self.board_x, self.board_y = env.get_board_size()
+        self.board_x, self.board_y = env.get_ub_board_size()
         self.action_size = env.n_actions
         self.n_inputs = env.n_inputs
         self.lr = args.lr
@@ -71,7 +64,7 @@ class Policy(nn.Module):
         pi = self.fc3(s)                                                                         # batch_size x action_size
         v = self.fc4(s)                                                                          # batch_size x 1
 
-        return pi, F.log_softmax(pi, dim=1), torch.tanh(v)
+        return pi, F.log_softmax(pi, dim=1), v
     
     def step(self, obs):
         """
@@ -80,7 +73,7 @@ class Policy(nn.Module):
         :return: Policy estimate [N, n_actions] and value estimate [N] for
         the given observations.
         """
-        obs = torch.from_numpy(obs).to(self.device)
+        obs = torch.from_numpy(np.array(obs)).to(self.device)
         _, pi, v = self.forward(obs)
 
         return pi.detach().to('cpu').numpy(), v.detach().to('cpu').numpy()
