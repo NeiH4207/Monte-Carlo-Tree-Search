@@ -76,7 +76,10 @@ class Environment(object):
             self.treasures_matrix[x][y] = value
             
         if self.show_screen:
-            self.screen.create_board(self.height, self.width, self.observation)
+            scores, treasure_scores, _ = self.compute_score(dcopy(self.observation))
+            scores[0] += treasure_scores[0]
+            scores[1] += treasure_scores[1]
+            self.screen.create_board(self.height, self.width, self.observation, scores)
         
     def preprocess(self):
         height, width, score_matrix, agent_pos,  treasures, walls, \
@@ -88,9 +91,6 @@ class Environment(object):
         self.remaining_turns = n_turns
         self.n_agents = n_agents
         self.n_turns = n_turns
-        maximum = np.max(score_matrix)
-        minimum = np.min(score_matrix)
-        self.normalized_score_matrix = (score_matrix - minimum) / (maximum - minimum)
     
         for i in range(self.MAX_SIZE):
             self.score_matrix.append([0] * self.MAX_SIZE)
@@ -104,6 +104,10 @@ class Environment(object):
         for i in range(self.height):
             for j in range(self.width):
                 self.score_matrix[i][j] = score_matrix[i][j]
+                
+        self.maximum = np.max(score_matrix)
+        self.minimum = np.min(score_matrix)
+        self.normalized_score_matrix = (self.score_matrix[i][j] - self.minimum) / (self.maximum - self.minimum)
             
         for i in range(self.n_agents):    
             for j in range(2):
@@ -126,10 +130,16 @@ class Environment(object):
                                     self.conquer_matrix, self.treasures_matrix, self.walls_matrix]
             
         if self.show_screen:
-            self.screen.create_board(self.height, self.width, self.observation)
+            scores, treasure_scores, _ = self.compute_score(dcopy(self.observation))
+            scores[0] += treasure_scores[0]
+            scores[1] += treasure_scores[1]
+            self.screen.create_board(self.height, self.width, self.observation, scores)
             
         self.observation_dim = len(self.get_state(0, 0))
         self.action_dim = 9
+        
+    def get_board_size(self):
+        return [self.MAX_SIZE, self.MAX_SIZE]
     
     def get_state(self, player, agent_id):
         state = dcopy(self.get_observation(player))
@@ -262,20 +272,7 @@ class Environment(object):
         state.pop()
         scores, treasure_scores, _ = self.compute_score(state)
         result = scores[0] + treasure_scores[0] - scores[1] - treasure_scores[1]
-        if player_ID == 0:
-            if result > 0:
-                return 1
-            elif result < 0:
-                return -1
-            else:
-                return 0
-        else:
-            if result < 0:
-                return 1
-            elif result > 0:
-                return -1
-            else:
-                return 0
+        return result
             
     def check_next_action(self, _act, id_agent, agent_pos):
         x, y = agent_pos[id_agent][0], agent_pos[id_agent][1]
@@ -464,8 +461,8 @@ class Environment(object):
             valid = False
         
         
-        state = [score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix, agent]         
-        return state
+        return [score_matrix, agents_matrix, conquer_matrix, 
+                treasures_matrix, walls_matrix, agent]         
     
     def get_next_action_pos(self, action_1, action_2):
         point_punish = 30
@@ -684,6 +681,7 @@ class Environment(object):
         self.remaining_turns -= 1
         if(render):
             self.screen.save_score(self.score_mine, self.score_opponent, self.remaining_turns)
+            self.render()
             # print(self.score_mine, self.score_opponent)
         terminal = (self.remaining_turns == 0)
         self.punish += punish/1000
@@ -717,7 +715,7 @@ class Environment(object):
         return self.soft_step_(state, action), player_ID, agent_ID
             
     def get_return(self, state, player_ID):
-        return self.get_score(state, player_ID)
+        return 1 if self.get_score(state, player_ID) >= 0 else -1
     
     def is_done_state(self, state, depth):
         return depth >= 2 * (1 + self.n_turns) * self.n_agents

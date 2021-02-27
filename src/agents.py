@@ -7,10 +7,9 @@ Created on Thu Nov  5 09:45:45 2020
 """
 import numpy as np
 import torch
-from src.model import ActorCritic, ActorCritic_2
-from src.replay_memory import ReplayBuffer
+from src.model import Policy
+from src.replay_memory import ReplayMemory
 from random import random, randint, choices, uniform
-from src import utils
 from src.utils import flatten
 import torch.nn.functional as F
 from sklearn.utils import shuffle
@@ -20,9 +19,9 @@ from torch.distributions import Categorical
 MAP_SIZE = 5
 
 class Agent():
-    def __init__(self, args, observation_dim, action_dim, agent_name):
-        self.observation_dim = observation_dim
-        self.action_dim = action_dim
+    def __init__(self, env, args, agent_name):
+        self.observation_dim = env.observation_dim
+        self.action_dim = env.action_dim
         self.args = args
         self.iter = 0
         self.steps_done = 0
@@ -30,8 +29,6 @@ class Agent():
         self.learn_step_counter = 0
         self.random_rate = self.args.initial_epsilon
         self.agent_name = agent_name
-        self.observation_dim = observation_dim
-        self.action_dim = action_dim
         self.use_cuda = torch.cuda.is_available()
         self.chk_point_file_model = './Models/'
         self.value_loss = 0
@@ -40,13 +37,13 @@ class Agent():
         ''' Setup CUDA Environment'''
         self.device = 'cuda' if self.use_cuda else 'cpu'
         
-        self.model = ActorCritic(self.n_inputs, self.observation_dim, self.action_dim, self.args.lr, self.chk_point_file_model)
+        self.model = Policy(env, self.args)
         self.target_model = dcopy(self.model)
         self.model.to(self.device)
         if self.args.load_checkpoint:
             self.load_models()
         
-        self.memories = ReplayBuffer(self.args.replay_memory_size)
+        self.memories = ReplayMemory(self.args.replay_memory_size, self.args.batch_size)
             
             
     def set_environment(self, n_agents):
@@ -151,7 +148,8 @@ class Agent():
         
     def select_action(self, state):
         state = torch.FloatTensor(state).to(self.device)
-        prob, state_value = self.model(state)
+        _, prob, state_value = self.model(state)
+        prob = Categorical(prob)
         act = prob.sample()
         if random() < self.random_rate:
             act = torch.tensor(randint(0, self.action_dim - 1)).to(self.device)
