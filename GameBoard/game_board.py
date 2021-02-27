@@ -62,7 +62,7 @@ class Screen():
     def coord(self, x, y):
         return x * self.SQUARE_SIZE, y * self.SQUARE_SIZE
     
-    def create_board(self, h, w, state, scores): 
+    def create_board(self, h, w, state): 
         self.__init__(self.show_screen)
         score_matrix, agents_matrix, conquer_matrix, treasures_matrix, walls_matrix = dcopy(state)
         self.score_matrix = score_matrix
@@ -70,8 +70,8 @@ class Screen():
         self.treasures_matrix = treasures_matrix
         self.conquer_matrix = conquer_matrix
         self.walls_matrix = walls_matrix
-        self.score_A = scores[0]
-        self.score_B = scores[1]
+        self.score_A = 0
+        self.score_B = 0
         self.height = h * self.SQUARE_SIZE
         self.h = h
         self.w = w
@@ -128,22 +128,22 @@ class Screen():
             pygame.display.update()
             
     def show_score(self):
-        self.screen.blit(self.table_img, self.coord(self.h - 1, -2))
+        self.screen.blit(self.table_img, self.coord(self.h - 1, -1))
         
         myFont = pygame.font.SysFont("Times New Roman", 30)
         
         color = (255, 178, 21)
         
-        SA = myFont.render("    : " + str(self.score_A), 0, color)
-        SB = myFont.render("    : " + str(self.score_B), 0, color)
-        STurns = myFont.render("Turns: " + str(self.turns), 0, color)
+        SA = myFont.render("    : " + str(self.score_A), 1, color)
+        SB = myFont.render("    : " + str(self.score_B), 1, color)
+        STurns = myFont.render("Turns: " + str(self.turns), 1, color)
         
     
-        self.screen.blit(SA, self.coord(self.h + 1, 1))
-        self.screen.blit(SB, self.coord(self.h + 1, 2))
-        self.screen.blit(STurns, self.coord(self.h + 1, 3))
-        self.screen.blit(self.agent_A_img, (self.height + 30, -5 + 1 * self.SQUARE_SIZE))
-        self.screen.blit(self.agent_B_img, (self.height + 30, -5 + 2 * self.SQUARE_SIZE))
+        self.screen.blit(SA, self.coord(self.h + 1, 2))
+        self.screen.blit(SB, self.coord(self.h + 1, 3))
+        self.screen.blit(STurns, self.coord(self.h + 1, 4))
+        self.screen.blit(self.agent_A_img, (self.height + 30, -5 + 2 * self.SQUARE_SIZE))
+        self.screen.blit(self.agent_B_img, (self.height + 30, -5 + 3 * self.SQUARE_SIZE))
     
     def show_value(self, value, x, y):
         

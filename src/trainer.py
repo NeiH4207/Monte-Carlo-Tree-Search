@@ -19,14 +19,14 @@ class Trainer:
 
         def train(batch):
             obs, search_pis, returns = batch
-            obs = torch.from_numpy(obs).to(self.device)
+            obs = torch.from_numpy(obs).view(-1, 288).to(self.device)
             search_pis = torch.from_numpy(search_pis).to(self.device)
             returns = torch.from_numpy(returns).to(self.device)
             model.reset_grad()
             logits, policy, value = self.model(obs)
             logsoftmax = nn.LogSoftmax(dim=1)
-            policy_loss = torch.mean(torch.sum(-search_pis * logsoftmax(logits), dim=1))
-            value_loss = self.value_criterion(value, returns.unsqueeze(1))
+            policy_loss = torch.sum(-search_pis * logsoftmax(logits), dim=1).mean()
+            value_loss = self.value_criterion(value, returns)
             loss = policy_loss + value_loss
             loss.backward()
             model.optimize()

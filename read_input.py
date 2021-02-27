@@ -73,7 +73,7 @@ class Data():
                 treasure_coord[j + num_treasures] = [height- _x - 1, width- _y - 1, value]
             
                    
-            num_walls = 1
+            num_walls = 2
             
             wall_coord = [0] * (num_walls * 2)
             for j in range(num_walls):
@@ -130,7 +130,7 @@ class Data():
         turns = random.randint(5, 15)
         
         # n_agents = random.randint(2, 8)
-        n_agents = 2
+        n_agents = random.randint(2, self.MAX_SIZE / 2)
         agent_pos = [[], []]
         
         
@@ -145,7 +145,7 @@ class Data():
             agent_pos[1]. append( [height - _x - 1, width - _y - 1])
         
             
-        num_treasures = random.randint(2, 2)
+        num_treasures = random.randint(2, 4)
         treasures = []
         for j in range(num_treasures):
             _x, _y = random.randint(0, height- 1), random.randint(0, width- 1)
@@ -162,7 +162,7 @@ class Data():
         
                
         # num_walls = random.randint(int(height * width / 40), int(height * width / 30))
-        num_walls = random.randint(2, 2)
+        num_walls = random.randint(2, 4)
         
         wall_coords = []
         for j in range(num_walls):
