@@ -17,14 +17,14 @@ def train(args, args_2):
     env = Environment(data.get_random_map(), args.show_screen, args.max_size)
     agent_1 = Agent(env, args, 'agent_procon_1')  
     agent_2 = Agent(env, args_2, 'agent_procon_2')  
-    visual_mean_value_1 = deque(maxlen = 5000)
-    visual_mean_value_2 = deque(maxlen = 5000)
-    visual_mean_value_3 = deque(maxlen = 5000)
-    visual_mean_value_4 = deque(maxlen = 5000)
-    visual_value_1 = deque(maxlen = 10)
-    visual_value_2 = deque(maxlen = 10)
-    visual_value_3 = deque(maxlen = 100)
-    visual_value_4 = deque(maxlen = 100)
+    visual_mean_value_1 = deque(maxlen = 20000)
+    visual_mean_value_2 = deque(maxlen = 20000)
+    visual_mean_value_3 = deque(maxlen = 20000)
+    visual_mean_value_4 = deque(maxlen = 20000)
+    visual_value_1 = deque(maxlen = 1000)
+    visual_value_2 = deque(maxlen = 1000)
+    visual_value_3 = deque(maxlen = 1000)
+    visual_value_4 = deque(maxlen = 1000)
     lr_super = args.lr_super
     lr_super_2 = args_2.lr_super
     
@@ -75,37 +75,37 @@ def train(args, args_2):
                     log_probs_1.append(log_prob_1)
                     rewards_1.append(reward_1)
                     
-                    # agent_state_2 = np.array(flatten([soft_state_2, env.get_agent_state(agent_id, soft_agent_pos_2)]))
-                    # if random.random() < lr_super_2:
-                    #     action_2, log_prob_2, state_value_2 = agent_2.select_action_exp(agent_state_2, predict_actions_2[agent_id])
-                    # else:
-                    #     action_2, log_prob_2, state_value_2 = agent_2.select_action(agent_state_2)
+                    agent_state_2 = np.array(flatten([soft_state_2, env.get_agent_state(agent_id, soft_agent_pos_2)]))
+                    if random.random() < lr_super_2:
+                        action_2, log_prob_2, state_value_2 = agent_2.select_action_exp(agent_state_2, predict_actions_2[agent_id])
+                    else:
+                        action_2, log_prob_2, state_value_2 = agent_2.select_action(agent_state_2)
                         
-                    # action_2, log_prob_2, state_value_2 = agent_2.select_action(agent_state_2)
-                    # state_values_2.append(state_value_2)
-                    # valid_2, next_state_2, reward_2 = env.soft_step(agent_id, soft_state_2, action_2, soft_agent_pos_2)
-                    # soft_state_2 = next_state_2
-                    # states_2.append(agent_state_2)
-                    # actions_2.append(action_2)
-                    # log_probs_2.append(log_prob_2)
-                    # rewards_2.append(reward_2)
+                    action_2, log_prob_2, state_value_2 = agent_2.select_action(agent_state_2)
+                    state_values_2.append(state_value_2)
+                    valid_2, next_state_2, reward_2 = env.soft_step(agent_id, soft_state_2, action_2, soft_agent_pos_2)
+                    soft_state_2 = next_state_2
+                    states_2.append(agent_state_2)
+                    actions_2.append(action_2)
+                    log_probs_2.append(log_prob_2)
+                    rewards_2.append(reward_2)
                     # actions_2.append(np.random.randint(0, env.n_actions - 1))
-                actions_2 = [0] * env.n_agents
+                # actions_2 = [0] * env.n_agents
                 # actions_2 = agent_2.select_action_smart(soft_state_2, soft_agent_pos_2, env)
                 # time.sleep(100000000)
                 next_state, final_reward, done, _ = env.step(actions_1, actions_2, args.show_screen)
                 # print(rewards_1)
                 # print(env.conquer_board)
                 for i in range(env.n_agents):
-                    beta = 1.0
-                    rewards_1[i] = rewards_1[i] * beta + final_reward * (1 - beta) / env.n_agents
+                    # beta = 1.0
+                    # rewards_1[i] = rewards_1[i] * beta + final_reward * (1 - beta) / env.n_agents
                     # rewards_2[i] = 0
-                    # if done:
-                    #     if i == env.n_agents - 1:
-                    #         rewards_1[i] = final_reward
-                            # rewards_2[i] = - final_reward
+                    if done:
+                        if i == env.n_agents - 1:
+                            rewards_1[i] = final_reward
+                            rewards_2[i] = - final_reward
                     agent_1.model.store(log_probs_1[i], state_values_1[i], rewards_1[i], next_state_1)
-                    # agent_2.model.store(log_probs_2[i], state_values_2[i], rewards_2[i], next_state_2)
+                    agent_2.model.store(log_probs_2[i], state_values_2[i], rewards_2[i], next_state_2)
                 
                 # print(env.conquer_board)
                 # print('end')
@@ -116,9 +116,8 @@ def train(args, args_2):
                     else:
                         cnt_l += 1
                     break
-            print(rewards_1)
             agent_1.learn()
-            # agent_2.learn()
+            agent_2.learn()
             end = time.time()
             visual_value_4.append(agent_1.value_loss)
             visual_value_2.append(cnt_l)
@@ -141,7 +140,7 @@ def train(args, args_2):
         # print('Completed episodes', lr_super)
         lr_super *= 0.985
         env.punish = 0
-        # env = Environment(data.get_random_map(), args.show_screen, args.max_size)
+        env = Environment(data.get_random_map(), args.show_screen, args.max_size)
 
 """
 Created on Fri Nov 27 16:00:47 2020
@@ -155,8 +154,8 @@ def get_args_1():
     parser.add_argument("--file_name", default = "input.txt")
     parser.add_argument("--type", default = "1")
     parser.add_argument("--run", type=str, default="train")   
-    parser.add_argument("--min_size", type=int, default= 4)   
-    parser.add_argument("--max_size", type=int, default= 4)   
+    parser.add_argument("--min_size", type=int, default= 10)   
+    parser.add_argument("--max_size", type=int, default= 10)   
     parser.add_argument("--image_size", type=int, default=84, help="The common width and height for all images")
     parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
     parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
@@ -194,13 +193,13 @@ def get_args_2():
     parser.add_argument("--file_name", default = "input.txt")
     parser.add_argument("--type", default = "1")
     parser.add_argument("--run", type=str, default="train")   
-    parser.add_argument("--min_size", type=int, default= 6)   
-    parser.add_argument("--max_size", type=int, default= 6)   
+    parser.add_argument("--min_size", type=int, default= 10)   
+    parser.add_argument("--max_size", type=int, default= 10)   
     parser.add_argument("--image_size", type=int, default=84, help="The common width and height for all images")
     parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
     parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--lr_super", type=float, default=0.9)
+    parser.add_argument("--lr_super", type=float, default=0.0)
     parser.add_argument("--gamma", type=float, default=1.0)
     parser.add_argument("--tau", type=float, default=0.01)
     parser.add_argument("--max_grad_norm", type=float, default=0.3)

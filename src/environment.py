@@ -739,13 +739,12 @@ class Environment(object):
         self.remaining_turns -= 1
         terminate = (self.remaining_turns == 0)
         self.punish += punish/1000
-        # if not terminate:
-        #     reward = 0
-        # elif self.players[0].total_score < self.players[1].total_score:
-        #     reward = -1
-        # else:
-        #     reward = 1
-        time.sleep(5)
+        if not terminate:
+            reward = 0
+        elif self.players[0].total_score < self.players[1].total_score:
+            reward = -1
+        else:
+            reward = 1
         return [self.observation, reward, terminate, self.remaining_turns]
 
     def next_state(self, state, action, player_ID, agent_ID):
