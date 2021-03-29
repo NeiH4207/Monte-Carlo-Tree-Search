@@ -28,7 +28,7 @@ class Policy(nn.Module):
         self.bn2 = nn.BatchNorm2d(args.num_channels).to(self.device)
         self.bn3 = nn.BatchNorm2d(args.num_channels).to(self.device)
         self.bn4 = nn.BatchNorm2d(args.num_channels).to(self.device)
-        self.fc1 = nn.Linear(args.num_channels * (self.board_x - 4)*(self.board_y - 4), 1024).to(self.device)
+        self.fc1 = nn.Linear(args.num_channels * (self.board_x)*(self.board_y), 1024).to(self.device)
         self.fc_bn1 = nn.BatchNorm1d(1024).to(self.device)
 
         self.fc2 = nn.Linear(1024, 512).to(self.device)
@@ -54,10 +54,10 @@ class Policy(nn.Module):
         #                                                           s: batch_size x n_inputs x board_x x board_y
         s = s.view(-1, self.n_inputs, self.board_x, self.board_y)    # batch_size x n_inputs x board_x x board_y
         s = F.relu(self.bn1(self.conv1(s)))                          # batch_size x num_channels x board_x x board_y
-        s = F.relu(self.bn2(self.conv2(s)))                          # batch_size x num_channels x board_x x board_y
-        s = F.relu(self.bn3(self.conv3(s)))                          # batch_size x num_channels x (board_x-2) x (board_y-2)
-        s = F.relu(self.bn4(self.conv4(s)))                          # batch_size x num_channels x (board_x-4) x (board_y-4)
-        s = s.view(-1, self.args.num_channels*(self.board_x-4)*(self.board_y-4))
+        # s = F.relu(self.bn2(self.conv2(s)))                          # batch_size x num_channels x board_x x board_y
+        # s = F.relu(self.bn3(self.conv3(s)))                          # batch_size x num_channels x (board_x-2) x (board_y-2)
+        # s = F.relu(self.bn4(self.conv4(s)))                          # batch_size x num_channels x (board_x-4) x (board_y-4)
+        s = s.view(-1, self.args.num_channels*(self.board_x)*(self.board_y))
         s = F.dropout(F.relu(self.fc1(s)), p=self.args.dropout, training=self.training)  # batch_size x 1024
         s = F.dropout(F.relu(self.fc2(s)), p=self.args.dropout, training=self.training)  # batch_size x 512
 

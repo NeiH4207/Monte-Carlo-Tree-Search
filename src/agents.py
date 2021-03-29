@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from sklearn.utils import shuffle
 from copy import deepcopy as dcopy
 from torch.distributions import Categorical
-
+torch.manual_seed(1)
 MAP_SIZE = 5
 
 class Agent():
@@ -23,7 +23,7 @@ class Agent():
         self.args = args
         self.iter = 0
         self.steps_done = 0
-        self.n_actions = env.n_actions
+        self.n_actions = env.action_dim
         self.learn_step_counter = 0
         self.random_rate = self.args.initial_epsilon
         self.agent_name = agent_name
@@ -197,7 +197,7 @@ class Agent():
             sum = np.sum(scores) + 0.0001
             for j in range(len(scores)):
                 scores[j] = scores[j] / sum
-                if(valid_states[j] is False):
+                if valid_states[j] is False:
                     scores[j] = 0
             act = np.array(scores).argmax()
             valid, state, score = env.soft_step(agent_id, state, act, agent_pos, predict=True)
@@ -241,7 +241,7 @@ class Agent():
             sum = np.sum(scores) + 0.0001
             for j in range(len(scores)):
                 scores[j] = scores[j] / sum
-                if(valid_states[j] is False):
+                if valid_states[j] is False:
                     scores[j] = 0
             act = choices(range(9), scores)[0]
             valid, state, agent_pos, score = self.env.fit_action(i, state, act, agent_pos_1, agent_pos_2)

@@ -35,7 +35,7 @@ print(' Action Max :- ', A_MAX)
     
 def test_env(args): 
     
-    trainer = Agent(args, S_DIM, A_DIM, 'model')
+    trainer = Agent(env, args, 'model')
     rewards = deque(maxlen = 100)
     reward_mean = deque(maxlen = 1000)
     for _ep in range(args.n_epochs):

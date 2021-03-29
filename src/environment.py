@@ -52,6 +52,7 @@ class Environment(object):
         self.punish = 0
         self.n_inputs = 9
         self.num_players = 2
+        self.action_dim = self.n_actions
         self.players = [Player(i) for i in range(self.num_players)]
         self.screen = Screen(self)
         self.reset()
@@ -112,7 +113,7 @@ class Environment(object):
         
         for i in range(self.MAX_SIZE):
             for j in range(self.MAX_SIZE):
-                if(i >= self.height or j >= self.width):
+                if i >= self.height or j >= self.width:
                     self.wall_board[i][j] = 1
             
         for x, y, value in treasure_board:
@@ -121,9 +122,9 @@ class Environment(object):
         self.upper_bound_score = np.max(score_board)
         self.lower_bound_score = np.min(score_board)
         self.range_bound = (self.upper_bound_score - self.lower_bound_score)
-        self.score_board = (self.score_board - self.lower_bound_score) \
-            / self.range_bound
-        self.treasure_board /= self.range_bound
+        # self.score_board = (self.score_board - self.lower_bound_score) \
+        #     / self.range_bound
+        # self.treasure_board /= self.range_bound
         
         self.observation = self.get_observation(0)
             
@@ -145,19 +146,17 @@ class Environment(object):
         
         for player_ID in range(self.num_players):
             self.players[player_ID].reset()
+            for x in range(self.height):
+                for y in range(self.width):       
+                    self.agent_board[player_ID][x][y] = 0
+                    self.conquer_board[player_ID][x][y] = 0
         
         for i in range(self.n_agents):    
             for j in range(2):
                 x, y = self.agent_pos[j][i]
                 if self.show_screen:
                     self.screen.reset_square([x, y], -1, 0)
-        
-        for player_ID in range(self.num_players):
-            for agent_ID in range(self.n_agents):
-                x, y = self.agent_pos[player_ID][agent_ID]
-                self.agent_board[player_ID][x][y] = 0
-                self.conquer_board[player_ID][x][y] = 0
-                
+                    
         height, width, _, agent_pos,  _, _, \
             conquer_board, n_turns, n_agents = [dcopy(_data) for _data in self.data]
             
@@ -166,8 +165,8 @@ class Environment(object):
         for player_ID in range(self.num_players):
             for agent_ID in range(self.n_agents):
                 x, y = self.agent_pos[player_ID][agent_ID]
-                self.agent_board[j][x][y] = 1
-                self.conquer_board[j][x][y] = 1
+                self.agent_board[player_ID][x][y] = 1
+                self.conquer_board[player_ID][x][y] = 1
     
         self.observation = self.get_observation(0)
         title_scores, treasure_scores, area_scores = \
@@ -198,7 +197,7 @@ class Environment(object):
         return [self.MAX_SIZE, self.MAX_SIZE]
     
     def get_state(self, player, agent_id):
-        state = dcopy(self.get_observation(player))
+        state = self.get_observation(player)
         state.append(self.get_agent_state(agent_id, self.agent_pos[player]))
         return state
     
@@ -260,36 +259,26 @@ class Environment(object):
         return switcher.get(act, 0)
     
     def compute_score_area(self, state, player_ID):
-        visited = []
-        score_board = state[ScoreBoardID]
-        conquer_board = state[ConquerID]
-        wall_board = state[WallID]
-        score = 0
-        for i in range(self.height):
-            visited.append([False] * self.width)
-            for j in range(self.MAX_SIZE):
-                visited[i][j] = True if conquer_board[player_ID][i][j] else False
-            
         def is_border(x, y):
             return x <= 0 or x >= self.height - 1 or y <= 0 or y >= self.width - 1
         
         def can_move(x, y):
-            return x >= 0 and x < self.height and y >= 0 and y < self.width \
-                and conquer_board[player_ID][x][y] != 1
+            return x >= 0 and x < self.height and y >= 0 and y < self.width
         
-        def dfs(x, y):
+        def dfs(x, y, visited):
             visited[x][y] = True
-            temp_score = (abs(score_board[x][y] * self.range_bound + self.lower_bound_score) \
-                - self.lower_bound_score) / self.range_bound
-            if(wall_board[x][y] == 1):
-                temp_score = 0
-            if is_border(x, y):
-                return -1
             is_closed = True
+            if is_border(x, y):
+                is_closed = False
+            temp_score = abs(score_board[x][y])
+            if wall_board[x][y] == 1:
+                temp_score = 0
             for i in range(4):
-                if can_move(x + dx[i], y + dy[i]) and not visited[x + dx[i]][y + dy[i]]:
-                   _score = dfs(x + dx[i], y + dy[i])
-                   if _score == -1:
+                _x = x + dx[i]
+                _y = y + dy[i]
+                if can_move(_x, _y) and not visited[_x][_y]:
+                   _score = dfs(_x, _y, visited)
+                   if _score < 0:
                        is_closed = False
                    else:
                        temp_score += _score
@@ -297,13 +286,25 @@ class Environment(object):
                 return -1
             return temp_score
         
-        
+        visited = []
+        score_board = state[ScoreBoardID]
+        conquer_board = state[ConquerID]
+        wall_board = state[WallID]
+        score = 0
+        for i in range(self.height):
+            visited.append([False] * self.width)
+            for j in range(self.width):
+                if conquer_board[player_ID][i][j] == 1:
+                    visited[i][j] = True
+
         for i in range(self.height):
             for j in range(self.width):
                 if not visited[i][j]:
-                    temp = dfs(i, j)
+                    temp = dfs(i, j, visited)
                     score += max(0, temp)
-                    
+                    # if score > 0:
+                    #     print(score)
+                    #     print(visited)
         return score
         
     def compute_score(self, state, old_state):
@@ -332,12 +333,11 @@ class Environment(object):
         title_scores = [0, 0]
         treasure_score = [0, 0]
         area_scores = [0, 0]
-        
         for i in range(self.height):
             for j in range(self.width):
-                if(conquer_board[0][i][j] == 1):
+                if conquer_board[0][i][j] == 1:
                     title_scores[0] += score_board[i][j]
-                if(conquer_board[1][i][j] == 1):
+                if conquer_board[1][i][j] == 1:
                     title_scores[1] += score_board[i][j]
                 if treasure_board[i][j] > 0 and old_state[ConquerID][0][i][j] == 0 \
                         and old_state[ConquerID][1][i][j] == 0:
@@ -411,7 +411,7 @@ class Environment(object):
                 if new_y >= 0:
                     if wall_board[new_x][new_y] == 0: 
                         _sc = treasure_board[new_x][new_y] ** p_1
-                        if(conquer_board[0][new_x][new_y] != 1):
+                        if conquer_board[0][new_x][new_y] != 1:
                             _sc += (max(reduce_negative * score_board[new_x][new_y], score_board[new_x][new_y]) ** p_2)
                         if act == 0 or self.check(x, y, new_x, new_y, act):
                             score += _sc * discount
@@ -420,7 +420,7 @@ class Environment(object):
                 if new_y  < self.width:
                     if wall_board[new_x][new_y] == 0: 
                         _sc = treasure_board[new_x][new_y] ** p_1
-                        if(conquer_board[0][new_x][new_y] != 1):
+                        if conquer_board[0][new_x][new_y] != 1:
                             _sc += (max(reduce_negative * score_board[new_x][new_y], score_board[new_x][new_y]) ** p_2)
                         if act == 0 or self.check(x, y, new_x, new_y, act):
                             score += _sc * discount
@@ -430,7 +430,7 @@ class Environment(object):
                 if new_x >= 0:
                     if wall_board[new_x][new_y] == 0: 
                         _sc = treasure_board[new_x][new_y] ** p_1
-                        if(conquer_board[0][new_x][new_y] != 1):
+                        if conquer_board[0][new_x][new_y] != 1:
                             _sc += (max(reduce_negative * score_board[new_x][new_y], score_board[new_x][new_y]) ** p_2)
                         if act == 0 or self.check(x, y, new_x, new_y, act):
                             score += _sc * discount
@@ -439,7 +439,7 @@ class Environment(object):
                 if new_x < self.height:
                     if wall_board[new_x][new_y] == 0: 
                         _sc = treasure_board[new_x][new_y] ** p_1
-                        if(conquer_board[0][new_x][new_y] != 1):
+                        if conquer_board[0][new_x][new_y] != 1:
                             _sc += (max(reduce_negative * score_board[new_x][new_y], score_board[new_x][new_y]) ** p_2)
                         if act == 0 or self.check(x, y, new_x, new_y, act):
                             score += _sc * discount
@@ -455,6 +455,8 @@ class Environment(object):
         new_pos = self.next_action(x, y, act)
         _x, _y = new_pos
         valid = True
+        aux_score = 0
+        reward = 0
         if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and wall_board[_x][_y] == 0:
             if agent_board[0][_x][_y] == 0 and agent_board[1][_x][_y] == 0:
                 if conquer_board[1][_x][_y] == 0:
@@ -470,13 +472,19 @@ class Environment(object):
             
         title_scores, treasures_scores, area_scores = self.compute_score(state, old_state)
         if valid:
-            aux_score = self.predict_spread_scores(_x, _y, state, act)
-        reward = title_scores[0] + treasures_scores[0] + area_scores [0] \
-            - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score
+            if predict:
+                aux_score = self.predict_spread_scores(_x, _y, state, act)
+            else:
+                aux_score = 0
+            reward = title_scores[0] + treasures_scores[0] + area_scores [0] + aux_score\
+                - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score
+        else:
+            aux_score = - self.range_bound
+            reward = aux_score
         return valid, state, reward
     
     def soft_step_(self, state, action):
-        _, agent_board, conquer_board, treasure_board, wall_board, agent = state
+        _, agent_board, conquer_board, treasure_board, wall_board, agent, _ = state
         x, y = -1, -1
         for i in range(self.height):
             for j in range(self.width):
@@ -650,19 +658,18 @@ class Environment(object):
         return new_pos, checked, punish
     
     def step(self, action_1, action_2, render = False):
-        
         new_pos, checked, punish = self.get_next_action_pos(action_1, action_2)
         
         # render before action
         for i in range(self.n_agents):
             if checked[0][i] == 0:
                 x, y = new_pos[0][i]
-                if(self.conquer_board[1][x][y] == 0):
+                if self.conquer_board[1][x][y] == 0:
                     if self.agent_pos[0][i][0] != new_pos[0][i][0] \
                         or self.agent_pos[0][i][1] != new_pos[0][i][1]:
                         self.agent_board[0][self.agent_pos[0][i][0]][self.agent_pos[0][i][1]] = 0
                         self.agent_board[0][x][y] = 0
-                        if(render):
+                        if render:
                             self.screen.redraw_squares(
                                 self.agent_pos[0][i][0], self.agent_pos[0][i][1], 0)
                 else:
@@ -670,12 +677,12 @@ class Environment(object):
                                       
             if checked[1][i] == 0:
                 x, y = new_pos[1][i]
-                if(self.conquer_board[0][x][y] == 0):
+                if self.conquer_board[0][x][y] == 0 :
                     if self.agent_pos[1][i][0] != new_pos[1][i][0] \
                         or self.agent_pos[1][i][1] != new_pos[1][i][1]:
                         self.agent_board[1][x][y] = 0
                         self.agent_board[1][self.agent_pos[1][i][0]][self.agent_pos[1][i][1]] = 0
-                        if(render):
+                        if render:
                             self.screen.redraw_squares(
                                 self.agent_pos[1][i][0], self.agent_pos[1][i][1], 1)
                 else:
@@ -686,9 +693,9 @@ class Environment(object):
             for j in range(2):
                 if checked[j][i] == 0:
                     x, y = new_pos[j][i]
-                    if(self.conquer_board[1 - j][x][y] == 1):
+                    if self.conquer_board[1 - j][x][y] == 1:
                         self.conquer_board[1 - j][x][y] = 0
-                        if(render):
+                        if render:
                             self.screen.reset_square([x, y], -1)
                         new_pos[j][i] = dcopy(self.agent_pos[j][i])
                     else:
@@ -704,13 +711,14 @@ class Environment(object):
         
         title_scores, treasure_scores, area_scores = \
             self.compute_score(self.observation, self.old_observation)
+            
+        if render: self.render()
         for player_ID in range(self.num_players):
             self.players[player_ID].title_score = title_scores[player_ID]
             self.players[player_ID].treasure_score += treasure_scores[player_ID]
             self.players[player_ID].area_score = area_scores[player_ID]
             
         self.old_observation = dcopy(self.observation)
-        
         if render:
             for player_id in range(self.num_players):
                 for agent_ID in range(self.n_agents):
@@ -727,6 +735,7 @@ class Environment(object):
             self.players[player_ID].old_score = self.players[player_ID].total_score
             # self.players[player_ID].show_scores()
             
+        # print(self.conquer_board)
         self.remaining_turns -= 1
         terminate = (self.remaining_turns == 0)
         self.punish += punish/1000
@@ -736,6 +745,7 @@ class Environment(object):
         #     reward = -1
         # else:
         #     reward = 1
+        time.sleep(5)
         return [self.observation, reward, terminate, self.remaining_turns]
 
     def next_state(self, state, action, player_ID, agent_ID):

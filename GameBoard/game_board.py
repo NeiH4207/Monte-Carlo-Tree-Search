@@ -64,7 +64,7 @@ class Screen():
         for i in range(self.h):
             for j in range(self.w):
                 # draw wall
-                if(self.env.wall_board[i][j] == 1):
+                if self.env.wall_board[i][j] == 1:
                     self.draw_wall(i, j)
                 else:
                     self.reset_square([i, j], -1)
@@ -109,8 +109,8 @@ class Screen():
         
         color = (255, 178, 21)
         
-        SA = myFont.render("    : " + str(round(100*self.env.players[0].total_score)), 0, color)
-        SB = myFont.render("    : " + str(round(100*self.env.players[1].total_score)), 0, color)
+        SA = myFont.render("    : " + str(round(self.env.players[0].total_score)), 0, color)
+        SB = myFont.render("    : " + str(round(self.env.players[1].total_score)), 0, color)
         STurns = myFont.render("Turns: " + str(self.env.remaining_turns), 0, color)
         
     
@@ -122,7 +122,7 @@ class Screen():
     
     def show_value(self, value, x, y):
         myFont = pygame.font.SysFont("Times New Roman", 20)
-        value = round(value * self.env.range_bound + self.env.lower_bound_score)
+        value = round(value)
         pos = 5
         if value >= 0 and value < 10:
             pos = 15
@@ -140,7 +140,7 @@ class Screen():
         
     def show_treasure_value(self, value, x, y):
         self.draw_treasure(x, y)
-        value = round(value * self.env.range_bound)
+        value = round(value)
         myFont = pygame.font.SysFont("Times New Roman", 13)
         value = myFont.render(str(value), 1, (255, 0, 0))
         self.screen.blit(value, (x * self.SQUARE_SIZE + 2, y * self.SQUARE_SIZE + int(self.SQUARE_SIZE * 5 / 7)))
@@ -209,7 +209,7 @@ class Screen():
         for i in range(self.h):
             for j in range(self.w):
                 # draw wall
-                if(self.env.wall_board[i][j] == 1):
+                if self.env.wall_board[i][j] == 1:
                     self.draw_wall(i, j)
                 else:
                     self.reset_square([i, j], -1, 0)

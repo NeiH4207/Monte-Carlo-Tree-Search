@@ -43,6 +43,8 @@ def train(args, args_2):
                 if args.show_screen:
                     env.render()
                 # initialize
+                # print('st')
+                # print(env.conquer_board)
                 states_1, actions_1, state_values_1, log_probs_1, rewards_1 = [], [], [], [], []
                 states_2, actions_2, state_values_2, log_probs_2, rewards_2 = [], [], [], [], []
                 # update by step
@@ -54,7 +56,7 @@ def train(args, args_2):
                 
                 predict_actions_1 = agent_1.select_action_smart(soft_state_1, soft_agent_pos_1, env)
                 predict_actions_2 = agent_2.select_action_smart(soft_state_2, soft_agent_pos_2, env)
-                
+
                 # fit for each agent
                 for agent_id in range(env.n_agents):
                     agent_state_1 = env.get_obs_for_states(
@@ -88,32 +90,37 @@ def train(args, args_2):
                     # log_probs_2.append(log_prob_2)
                     # rewards_2.append(reward_2)
                     # actions_2.append(np.random.randint(0, env.n_actions - 1))
-                
-                # actions_2 = [0] * env.n_agents
-                actions_2 = agent_2.select_action_smart(soft_state_2, soft_agent_pos_2, env)
+                actions_2 = [0] * env.n_agents
+                # actions_2 = agent_2.select_action_smart(soft_state_2, soft_agent_pos_2, env)
                 # time.sleep(100000000)
                 next_state, final_reward, done, _ = env.step(actions_1, actions_2, args.show_screen)
+                # print(rewards_1)
+                # print(env.conquer_board)
                 for i in range(env.n_agents):
-                    # rewards_1[i] = 0
+                    beta = 1.0
+                    rewards_1[i] = rewards_1[i] * beta + final_reward * (1 - beta) / env.n_agents
                     # rewards_2[i] = 0
-                    if done:
-                        if i == env.n_agents - 1:
-                            rewards_1[i] = final_reward
+                    # if done:
+                    #     if i == env.n_agents - 1:
+                    #         rewards_1[i] = final_reward
                             # rewards_2[i] = - final_reward
                     agent_1.model.store(log_probs_1[i], state_values_1[i], rewards_1[i], next_state_1)
                     # agent_2.model.store(log_probs_2[i], state_values_2[i], rewards_2[i], next_state_2)
+                
+                # print(env.conquer_board)
+                # print('end')
                 if done:
+                    visual_value_3.append(env.players[0].total_score)
                     if env.players[0].total_score > env.players[1].total_score:
                         cnt_w += 1
                     else:
                         cnt_l += 1
                     break
-                
+            print(rewards_1)
             agent_1.learn()
             # agent_2.learn()
             end = time.time()
-            visual_value_3.append(agent_1.value_loss)
-            visual_value_4.append(agent_2.value_loss)
+            visual_value_4.append(agent_1.value_loss)
             visual_value_2.append(cnt_l)
             visual_value_1.append(cnt_w)
             visual_mean_value_1.append(np.mean(visual_value_1))
@@ -123,7 +130,7 @@ def train(args, args_2):
             if agent_1.steps_done % 50 == 0:
                 plot(visual_mean_value_1, False, 'red')
                 plot(visual_mean_value_2, True, 'blue')
-                plot(visual_mean_value_3, False, 'red')
+                plot(visual_mean_value_3, True, 'red')
                 plot(visual_mean_value_4, True, 'blue')
                 print("Time: {0: >#.3f}s". format(1000*(end - start)))
             if args.saved_checkpoint:
@@ -148,14 +155,14 @@ def get_args_1():
     parser.add_argument("--file_name", default = "input.txt")
     parser.add_argument("--type", default = "1")
     parser.add_argument("--run", type=str, default="train")   
-    parser.add_argument("--min_size", type=int, default= 6)   
-    parser.add_argument("--max_size", type=int, default= 6)   
+    parser.add_argument("--min_size", type=int, default= 4)   
+    parser.add_argument("--max_size", type=int, default= 4)   
     parser.add_argument("--image_size", type=int, default=84, help="The common width and height for all images")
     parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
     parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--lr_super", type=float, default=0.0)
-    parser.add_argument("--gamma", type=float, default=1.0)
+    parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--tau", type=float, default=0.01)
     parser.add_argument("--max_grad_norm", type=float, default=0.3)
     parser.add_argument("--discount", type=float, default=0.999)   
@@ -176,7 +183,7 @@ def get_args_1():
     parser.add_argument("--model_name", type=str, default='model')
     parser.add_argument("--show_screen", type=str, default=True)
     parser.add_argument("--load_checkpoint", type=str, default=False)
-    parser.add_argument("--saved_checkpoint", type=str, default=True)   
+    parser.add_argument("--saved_checkpoint", type=str, default=True) 
     
     args, unknown = parser.parse_known_args()
     return args

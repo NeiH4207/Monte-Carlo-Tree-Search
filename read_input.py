@@ -2,7 +2,7 @@ import random
 from copy import deepcopy as dcopy
 import numpy as np
 
-random.seed(3)
+random.seed(1)
             
 class Data():
     
@@ -145,7 +145,8 @@ class Data():
             agent_pos[1]. append( [height - _x - 1, width - _y - 1])
         
             
-        num_treasures = random.randint(2, 2)
+        # num_treasures = random.randint(2, 2)
+        num_treasures = 0
         treasures = []
         for j in range(num_treasures):
             _x, _y = random.randint(0, height- 1), random.randint(0, width- 1)
@@ -162,7 +163,8 @@ class Data():
         
                
         # num_walls = random.randint(int(height * width / 40), int(height * width / 30))
-        num_walls = random.randint(2, 2)
+        # num_walls = random.randint(2, 2)
+        num_walls = 0
         
         wall_coords = []
         for j in range(num_walls):
