@@ -34,12 +34,12 @@ def vizualize(arr, name, cl = 'red'):
     plt.show()
     
 def plot(values, export = True, cl = 'red', x_title = 'iteration', y_title = 'Scores'):
-    ax = plt.subplot(111)
+    ax = plt.figure(num=1, figsize=(4, 3)).gca()
     ax.grid()
-    ax.set_title('Training')
+    plt.xlabel("Iteration")
     ax.set_xlabel('Episode')
     ax.set_ylabel(y_title)
-    ax.plot(values, color = cl)
+    ax.plot(values, color = cl, linewidth = 1.25)
     if export:
         plt.savefig('./Experiments/' + y_title + '.pdf',bbox_inches='tight')
         plt.show()

@@ -40,8 +40,8 @@ class Data():
             
             turns = random.randint(30, 70)
             
-            # n_agents = random.randint(2, 8)
-            n_agents = 2
+            n_agents = random.randint(2, 8)
+            # n_agents = 2
             
             coord = [0] * (n_agents * 2)
             

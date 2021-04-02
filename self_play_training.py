@@ -12,9 +12,9 @@ from src.utils import plot, dotdict, dtanh
 cargs = dotdict({
     'run_mode': 'train',
     'visualize': True,
-    'min_size': 10,
-    'max_size': 20,
-    'n_games': 10,
+    'min_size': 7,
+    'max_size': 7,
+    'n_games': 2,
     'num_iters': 20000,
     'n_epochs': 1000000,
     'n_maps': 1000,
@@ -64,6 +64,10 @@ args = [
 def train(): 
     data = Data(cargs.min_size, cargs.max_size)
     env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
+    print("Infor map: ")
+    print("\tHeight - Width: {}-{}".format(env.height, env.width))
+    print("\tNum agents: {}".format(env.n_agents))
+    print()
     agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'agent_2')]
     wl_mean, score_mean, l_val_mean =\
         [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(3)]
@@ -147,7 +151,7 @@ def train():
                 l_val_mean[i].append(np.mean(l_val[i]))
             
             env.soft_reset()
-        if _ep % 10 == 9:
+        if _ep % 10 == 0:
             if cargs.visualize:
                 plot(wl_mean[0], False, 'red', y_title = 'num_of_wins')
                 plot(wl_mean[1], True, 'blue',  y_title = 'num_of_wins')
