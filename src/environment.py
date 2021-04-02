@@ -472,13 +472,11 @@ class Environment(object):
                 aux_score = self.predict_spread_scores(_x, _y, state, act)
             else:
                 aux_score = 0
-            if (title_scores[0] + treasures_scores[0] + area_scores [0] + aux_score\
-                - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score) > 0:
-                reward = 0.5
-            else:
-                reward = -0.5
+            reward = (title_scores[0] + treasures_scores[0] + area_scores [0] + aux_score\
+                - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score)
         else:
-            reward = -0.3
+            reward = -self.range_bound * 0.5
+            
         return valid, state, reward
     
     def get_next_action_pos(self, action_1, action_2):
@@ -699,10 +697,10 @@ class Environment(object):
             
         self.remaining_turns -= 1
         terminate = (self.remaining_turns == 0)
-        if terminate:
-            reward = 1 if self.players[0].total_score > self.players[1].total_score else -1
-        else:
-            reward = 0.8 if reward > 0 else -0.8
+        # if terminate:
+        #     reward = 1 if self.players[0].total_score > self.players[1].total_score else -1
+        # else:
+        #     reward = 0.8 if reward > 0 else -0.8
             
         return [self.observation, reward, terminate, self.remaining_turns]
 

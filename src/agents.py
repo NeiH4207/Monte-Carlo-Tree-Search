@@ -67,9 +67,10 @@ class Agent():
         y_exp = r + gamma*Q'( s2, pi'(s2))
         y_pred = Q( s1, a1)
         '''
+        # print(rewards)
         # gae = torch.zeros(1, 1).to
-        # for i in reversed(range(len(rewards) - 1)):
-        #     rewards[i] = rewards[i + 1]
+        for i in reversed(range(len(rewards) - 1)):
+            rewards[i] = rewards[i] * self.args.discount + (1 - self.args.discount) * rewards[i + 1]
             # r = rewards[i + 1]
             # rewards[i] = rewards[i] + self.args.gamma * r
             # gae = gae * self.args.gamma + rewards[i] - y_pred[i] + \

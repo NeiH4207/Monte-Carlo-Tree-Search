@@ -12,8 +12,8 @@ from src.utils import plot, dotdict, dtanh
 cargs = dotdict({
     'run_mode': 'train',
     'visualize': True,
-    'min_size': 8,
-    'max_size': 8,
+    'min_size': 10,
+    'max_size': 20,
     'n_games': 10,
     'num_iters': 20000,
     'n_epochs': 1000000,
@@ -29,16 +29,16 @@ args = [
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
-            'discount': 0.999,
+            'discount': 0.6,
             'num_channels': 64,
             'batch_size': 256,
             'replay_memory_size': 100000,
-            'dropout': 0.4,
+            'dropout': 0.6,
             'initial_epsilon': 0.1,
             'final_epsilon': 1e-4,
             'dir': './Models/',
             'load_checkpoint': False,
-            'saved_checkpoint': True
+            'saved_checkpoint': False
         }),
         
         dotdict({
@@ -48,7 +48,7 @@ args = [
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
-            'discount': 0.999,
+            'discount': 0.6,
             'batch_size': 256,
             'num_channels': 64,
             'replay_memory_size': 100000,
@@ -57,7 +57,7 @@ args = [
             'final_epsilon': 1e-4,
             'dir': './Models/',
             'load_checkpoint': False,
-            'saved_checkpoint': True
+            'saved_checkpoint': False
         })
 ]
 
@@ -70,6 +70,7 @@ def train():
     wl, score, l_val = [[deque(maxlen = 100), deque(maxlen = 100)] for _ in range(3)]
     lr_super = [args[0].exp_rate, args[1].exp_rate]
     cnt_w, cnt_l = 0, 0
+    beta = dtanh(env.remaining_turns)
         
     for _ep in range(cargs.n_epochs):
         print('Training_epochs: {}'.format(_ep + 1))
@@ -114,11 +115,15 @@ def train():
                 # actions[1] = [0] * env.n_agents
                 # actions[1] = pred_acts[1]
                 next_state, final_reward, done, _ = env.step(actions[0], actions[1], cargs.show_screen)
-                beta = dtanh(env.remaining_turns)
                 for i in range(env.n_agents):
                     # print(rewards)
-                    rewards[0][i] = rewards[0][i] * (1 - beta)  + beta * final_reward
-                    rewards[1][i] = rewards[1][i] * (1 - beta)  - beta * final_reward
+                    if done:
+                        rewards[0][i] = final_reward
+                        rewards[1][i] = - final_reward
+                    else:
+                        beta = 0.5
+                        rewards[0][i] = rewards[0][i] * (1 - beta)  + beta * final_reward
+                        rewards[1][i] = rewards[1][i] * (1 - beta)  - beta * final_reward
                     for j in range(env.num_players):
                         agent[j].model.store(log_probs[j][i], state_vals[j][i], rewards[j][i])
                 if done:
@@ -144,12 +149,12 @@ def train():
             env.soft_reset()
         if _ep % 10 == 9:
             if cargs.visualize:
-                plot(wl_mean[0], False, 'red')
-                plot(wl_mean[1], True, 'blue')
-                plot(score_mean[0], False, 'red')
-                plot(score_mean[1], True, 'blue')
-                plot(l_val_mean[0], False, 'red')
-                plot(l_val_mean[1], True, 'blue')
+                plot(wl_mean[0], False, 'red', y_title = 'num_of_wins')
+                plot(wl_mean[1], True, 'blue',  y_title = 'num_of_wins')
+                plot(score_mean[0], False, 'red', y_title = 'scores')
+                plot(score_mean[1], True, 'blue', y_title = 'scores')
+                plot(l_val_mean[0], False, 'red', y_title = 'loss_value')
+                plot(l_val_mean[1], True, 'blue', y_title = 'loss_value')
                 print("Time: {0: >#.3f}s". format(1000*(end - start)))
             if args[0].saved_checkpoint:
                 agent[0].save_models()

@@ -14,7 +14,7 @@ class dotdict(dict):
         return self[name]
 
 def dtanh(x):
-    return 1 / np.cosh(x) ** (0.125)
+    return 1 / np.cosh(x) ** (0.2)
 
 # print([dtanh(i) for i in range(10)])
 
@@ -33,14 +33,15 @@ def vizualize(arr, name, cl = 'red'):
     plt.savefig(name,bbox_inches='tight')
     plt.show()
     
-def plot(values, export = True, cl = 'red'):
+def plot(values, export = True, cl = 'red', x_title = 'iteration', y_title = 'Scores'):
     ax = plt.subplot(111)
     ax.grid()
     ax.set_title('Training')
     ax.set_xlabel('Episode')
-    ax.set_ylabel('Run Time')
+    ax.set_ylabel(y_title)
     ax.plot(values, color = cl)
     if export:
+        plt.savefig('./Experiments' + y_title + '.pdf',bbox_inches='tight')
         plt.show()
 
 
