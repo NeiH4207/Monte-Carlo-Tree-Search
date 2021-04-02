@@ -9,6 +9,15 @@ import shutil
 import torch.autograd as Variable
 import matplotlib.pyplot as plt
 
+class dotdict(dict):
+    def __getattr__(self, name):
+        return self[name]
+
+def dtanh(x):
+    return 1 / np.cosh(x) ** (0.125)
+
+# print([dtanh(i) for i in range(10)])
+
 def vizualize(arr, name, cl = 'red'):
 #     ax.set_yticks(np.arange(0, 1.04, 0.15))
     ax = plt.figure(num=1, figsize=(4, 3), dpi=200).gca()

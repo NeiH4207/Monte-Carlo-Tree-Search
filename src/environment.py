@@ -50,7 +50,8 @@ class Environment(object):
         self.data = dcopy(input_data)
         self.n_actions = 9
         self.punish = 0
-        self.n_inputs = 9
+        self.n_inputs = 7
+        self.max_n_agent = 8
         self.num_players = 2
         self.action_dim = self.n_actions
         self.players = [Player(i) for i in range(self.num_players)]
@@ -196,26 +197,20 @@ class Environment(object):
         """
         return [self.MAX_SIZE, self.MAX_SIZE]
     
-    def get_state(self, player, agent_id):
+    def get_state(self, player):
         state = self.get_observation(player)
-        state.append(self.get_agent_state(agent_id, self.agent_pos[player]))
         return state
     
     def get_observation(self, player_ID):
         """
         Returns current observation
         """
-        remaining_turns = []
-        for _ in range(self.MAX_SIZE):
-            remaining_turns.append([self.remaining_turns] * self.MAX_SIZE)
-                
         
         state = dcopy([self.score_board, 
                        self.agent_board, 
                        self.conquer_board, 
                        self.treasure_board, 
-                       self.wall_board,
-                       remaining_turns])
+                       self.wall_board])
         
         if player_ID == 1:
             temp = dcopy(state[1][0])
@@ -224,25 +219,27 @@ class Environment(object):
             temp = dcopy(state[2][0])
             state[2][0] = dcopy(state[2][1])
             state[2][1] = temp
-            
         return state
     
-    def get_obs_for_states(self, states):
+    def get_states_for_step(self, states):
         states = np.array(flatten(states), dtype = np.float32)\
             .reshape(-1, self.n_inputs, self.MAX_SIZE, self.MAX_SIZE)
         return states
     
-    
     def get_agent_pos(self, player):
         return dcopy(self.agent_pos[player])
     
-    def get_agent_state(self, agent_id, agent_pos):
-        agent_state = []
-        for i in range(self.MAX_SIZE):
-            agent_state.append([0] * self.MAX_SIZE)
-        x, y = agent_pos[agent_id]
-        agent_state[x][y] = 1
-        return agent_state
+    def get_agent_for_step(self, agent_id):
+        agent_pos = np.zeros([self.max_n_agent + 1], dtype=np.float32)
+        agent_pos[agent_id] = 1
+        agent_pos[-1] = self.remaining_turns
+        return np.array([agent_pos])
+    
+    def get_agents_for_step(self, agents_ID):
+        agents_step = [self.get_agent_for_step(agent_ID) for agent_ID in agents_ID]
+        agents_step = np.array(agents_step, dtype = np.float32)\
+            .reshape(-1, self.max_n_agent + 1)
+        return agents_step
     
     def get_act(act):
         switcher = {
@@ -353,7 +350,6 @@ class Environment(object):
     
     def get_score(self, state, old_state, player_ID):
         state = dcopy(state)
-        state.pop()
         title_scores, treasure_scores, area_scores = self.compute_score(state, old_state)
         result = title_scores[0] + treasure_scores[0] + area_scores[0] \
             - title_scores[1] - treasure_scores[1] - area_scores[1]
@@ -397,7 +393,7 @@ class Environment(object):
         return False
     
     def predict_spread_scores(self, x, y, state, act):
-        score_board, agent_board, conquer_board, treasure_board, wall_board, _ = state
+        score_board, agent_board, conquer_board, treasure_board, wall_board = state
         score = 0
         discount = 0.02
         reduce_negative = 0.02
@@ -450,7 +446,7 @@ class Environment(object):
         old_state = dcopy(state)
         old_scores, old_treasures_scores, area_scores = self.compute_score(old_state, old_state)
         old_score = old_scores[0] + area_scores[0] - old_scores[1] - area_scores[1]
-        score_board, agent_board, conquer_board, treasure_board, wall_board, _ = state
+        score_board, agent_board, conquer_board, treasure_board, wall_board = state
         x, y = agent_pos[agent_id][0], agent_pos[agent_id][1]     
         new_pos = self.next_action(x, y, act)
         _x, _y = new_pos
@@ -476,41 +472,18 @@ class Environment(object):
                 aux_score = self.predict_spread_scores(_x, _y, state, act)
             else:
                 aux_score = 0
-            reward = title_scores[0] + treasures_scores[0] + area_scores [0] + aux_score\
-                - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score
+            if (title_scores[0] + treasures_scores[0] + area_scores [0] + aux_score\
+                - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score) > 0:
+                reward = 0.5
+            else:
+                reward = -0.5
         else:
-            aux_score = - self.range_bound
-            reward = aux_score
+            reward = -0.3
         return valid, state, reward
     
-    def soft_step_(self, state, action):
-        _, agent_board, conquer_board, treasure_board, wall_board, agent, _ = state
-        x, y = -1, -1
-        for i in range(self.height):
-            for j in range(self.width):
-                if agent[i][j] == 1:
-                    x, y = i, j
-        new_pos = (self.next_action(x, y, action))
-        _x, _y = new_pos
-        if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and wall_board[_x][_y] == 0:
-            if agent_board[0][_x][_y] == 0 and agent_board[1][_x][_y] == 0:
-                if conquer_board[1][_x][_y] == 0:
-                    agent_board[0][_x][_y] = 1
-                    agent_board[0][x][y] = 0
-                    conquer_board[0][_x][_y] = 1
-                    treasure_board[_x][_y] = 0
-                    agent[x][y] = 0
-                    agent[_x][_y] = 1
-                else:
-                    conquer_board[1][_x][_y] = 0
-            
-        return state        
-    
     def get_next_action_pos(self, action_1, action_2):
-        point_punish = 30
-        punish = 0
         new_pos = [[], []]
-        checked = [[False] * self.n_agents, [False] * self.n_agents]
+        is_valid_action = [[True] * self.n_agents, [True] * self.n_agents]
         
         for i in range(self.n_agents):
             x, y = self.agent_pos[0][i][0], self.agent_pos[0][i][1]
@@ -520,64 +493,52 @@ class Environment(object):
         
         for i in range(self.n_agents):
             x, y = new_pos[0][i]
-            if not (x >= 0 and x < self.height and y >= 0 and y < self.width):
-                checked[0][i] = True
+            if (x < 0 or x >= self.height or y < 0 or y >= self.width):
+                is_valid_action[0][i] = False
                 new_pos[0][i] = dcopy(self.agent_pos[0][i])
-                punish += point_punish
             elif self.wall_board[x][y] == 1:
-                checked[0][i] = True
+                is_valid_action[0][i] = False
                 new_pos[0][i] = dcopy(self.agent_pos[0][i])
-                punish += point_punish
             
         for i in range(self.n_agents):
             x, y = new_pos[1][i]
-            if not (x >= 0 and x < self.height and y >= 0 and y < self.width):
-                checked[1][i] = True
+            if (x < 0 or x >= self.height or y < 0 or y >= self.width):
+                is_valid_action[1][i] = False
                 new_pos[1][i] = dcopy(self.agent_pos[1][i])
             elif self.wall_board[x][y] == 1:
-                checked[1][i] = True
+                is_valid_action[1][i] = False
                 new_pos[1][i] = dcopy(self.agent_pos[1][i])
             
-        # create connect matrix
+        """ create connect matrix """
         connected_matrix = []
         for j in range(2 * self.n_agents):
             connected_matrix.append([0] * (2 * self.n_agents))
             
         for i in range(2 * self.n_agents):
-            X = new_pos[0][i] if i < self.n_agents else new_pos[1][i % self.n_agents]
+            X = new_pos[0][i] if i < self.n_agents else new_pos[1][i - self.n_agents]
             for j in range(2 * self.n_agents):
-                if i == j:
-                    continue
+                if i == j: continue
                 Y = self.agent_pos[0][j] if j < self.n_agents \
-                    else self.agent_pos[1][j % self.n_agents]
+                    else self.agent_pos[1][j - self.n_agents]
                 if X[0] == Y[0] and X[1] == Y[1]:
                     connected_matrix[i][j] = 1
                         
-        # if conflict action to 1 square
+        """ handle conflict action, 1 square together"""
         for i in range(self.n_agents):
             for j in range(self.n_agents):
-                for k in range(2):
-                    for l in range(k, 2):
-                        if i == j and k == l: continue
-                        if new_pos[k][i][0] == new_pos[l][j][0] and\
-                            new_pos[k][i][1] == new_pos[l][j][1]:
-                            checked[k][i] = True
-                            checked[l][j] = True
-                            if i != j:
-                                punish += point_punish
-        
-        
-        for i in range(self.n_agents):
-            for j in range(2):
-                if checked[j][i]:
+                if new_pos[0][i][0] == new_pos[1][j][0] and\
+                    new_pos[0][i][1] == new_pos[1][j][1]:
+                    is_valid_action[0][i] = False
+                    is_valid_action[1][j] = False
                     new_pos[0][i] = dcopy(self.agent_pos[0][i])
-                    
-        # find the clique
+                    new_pos[1][j] = dcopy(self.agent_pos[1][j])
+        
+        """ handle the clique """
         for i in range(2 * self.n_agents):
-            if i < self.n_agents:
-                if checked[0][i]:
+            if j < self.n_agents:
+                if not is_valid_action[0][j]:
                     continue
-            elif checked[1][i - self.n_agents]:
+            elif not is_valid_action[1][j - self.n_agents]:
                 continue
             u = i
             stk = [u]
@@ -586,12 +547,12 @@ class Environment(object):
             
             for _ in range(2 * self.n_agents):
                 for j in range(2 * self.n_agents):
-                    if connected_matrix[u][j] == 1 and u != j:
+                    if connected_matrix[u][j] == 1:
                         stk.append(j)
                         is_clique = False
                         if j < self.n_agents:
-                            if checked[0][j]: is_clique = True
-                        elif checked[1][j - self.n_agents]:
+                            if not is_valid_action[0][j]: is_clique = True
+                        elif not is_valid_action[1][j - self.n_agents]:
                             is_clique = True
                         if visited[j]:
                             is_clique = True
@@ -599,38 +560,44 @@ class Environment(object):
                         if is_clique:
                             for id in stk:
                                 if id < self.n_agents:
-                                    checked[0][id] = 1
+                                    is_valid_action[0][id] = False
+                                    new_pos[0][id] = dcopy(self.agent_pos[0][id])
                                 else:
-                                    checked[1][id - self.n_agents] = 1
+                                    is_valid_action[1][id - self.n_agents] = False
+                                    new_pos[1][id - self.n_agents] = \
+                                        dcopy(self.agent_pos[1][id - self.n_agents])
                             stk = []
                             break
                         u = j
                         visited[j] = True
         
-        # find the remove action
+        """ handle the conflict remove action """
         for i in range(2 * self.n_agents):
             u = i
             stk = []
             visited = [False] * (2 * self.n_agents)
             visited[u] = True
             if i < self.n_agents:
-                if checked[0][i]:
+                if not is_valid_action[0][i]:
                     continue
-            elif checked[1][i - self.n_agents]:
+            elif not is_valid_action[1][i - self.n_agents]:
                 continue
             
             for _ in range(2 * self.n_agents):
                 for j in range(2 * self.n_agents):
-                    if connected_matrix[u][j] == 1 and u != j:
+                    if connected_matrix[u][j] == 1:
                         congestion = False
                         if j < self.n_agents:
                             x, y = new_pos[0][j]
-                            if self.conquer_board[1][x][y] == 1:
+                            if self.conquer_board[1][x][y] == 1 or\
+                                not is_valid_action[0][j]:
                                 congestion = True
                         else:
                             x, y = new_pos[1][j - self.n_agents]
-                            if self.conquer_board[0][x][y] == 1:
+                            if self.conquer_board[0][x][y] == 1 or\
+                                not is_valid_action[1][j - self.n_agents]:
                                 congestion = True
+                                
                         if visited[j]:
                             congestion = True
                             
@@ -639,30 +606,27 @@ class Environment(object):
                         if not congestion:
                             for id in stk:
                                 if id < self.n_agents:
-                                    checked[0][id] = 1
+                                    is_valid_action[0][id] = False
+                                    new_pos[0][id] = dcopy(self.agent_pos[0][id])
                                 else:
-                                    checked[1][id - self.n_agents] = 1
+                                    is_valid_action[1][id - self.n_agents] = False
+                                    new_pos[1][id - self.n_agents] = \
+                                        dcopy(self.agent_pos[1][id - self.n_agents])
                             stk = []
                             break
                         stk.append(j)
                         u = j
                 if len(stk) == 0:
                     break
-                                
-        for i in range(self.n_agents):
-            for j in range(2):
-                if checked[j][i]:
-                    new_pos[j][i] = dcopy(self.agent_pos[j][i])
         
-        
-        return new_pos, checked, punish
+        return new_pos, is_valid_action
     
     def step(self, action_1, action_2, render = False):
-        new_pos, checked, punish = self.get_next_action_pos(action_1, action_2)
+        new_pos, is_valid_action = self.get_next_action_pos(action_1, action_2)
         
         # render before action
         for i in range(self.n_agents):
-            if checked[0][i] == 0:
+            if is_valid_action[0][i]:
                 x, y = new_pos[0][i]
                 if self.conquer_board[1][x][y] == 0:
                     if self.agent_pos[0][i][0] != new_pos[0][i][0] \
@@ -675,7 +639,7 @@ class Environment(object):
                 else:
                     self.agent_board[0][x][y] = self.agent_board[1][x][y] = 0
                                       
-            if checked[1][i] == 0:
+            if is_valid_action[1][i]:
                 x, y = new_pos[1][i]
                 if self.conquer_board[0][x][y] == 0 :
                     if self.agent_pos[1][i][0] != new_pos[1][i][0] \
@@ -691,7 +655,7 @@ class Environment(object):
         # render after action
         for i in range(self.n_agents):
             for j in range(2):
-                if checked[j][i] == 0:
+                if is_valid_action[j][i]:
                     x, y = new_pos[j][i]
                     if self.conquer_board[1 - j][x][y] == 1:
                         self.conquer_board[1 - j][x][y] = 0
@@ -702,7 +666,6 @@ class Environment(object):
                         self.conquer_board[j][x][y] = 1
                         self.agent_board[j][x][y] = 1
         
-                
         for i in range(self.n_agents):
             self.agent_pos[0][i] = [new_pos[0][i][0], new_pos[0][i][1]]
             self.agent_pos[1][i] = [new_pos[1][i][0], new_pos[1][i][1]]
@@ -728,28 +691,23 @@ class Environment(object):
         
         if render: self.render()
         
-        reward = self.players[0].total_score - self.players[1].total_score - \
-            self.players[0].old_score + self.players[1].old_score
-            
+        reward = (self.players[0].total_score - self.players[1].total_score - \
+            self.players[0].old_score + self.players[1].old_score)
         for player_ID in range(self.num_players):
             self.players[player_ID].old_score = self.players[player_ID].total_score
             # self.players[player_ID].show_scores()
             
-        # print(self.conquer_board)
         self.remaining_turns -= 1
         terminate = (self.remaining_turns == 0)
-        self.punish += punish/1000
-        if not terminate:
-            reward = 0
-        elif self.players[0].total_score < self.players[1].total_score:
-            reward = -1
+        if terminate:
+            reward = 1 if self.players[0].total_score > self.players[1].total_score else -1
         else:
-            reward = 1
+            reward = 0.8 if reward > 0 else -0.8
+            
         return [self.observation, reward, terminate, self.remaining_turns]
 
-    def next_state(self, state, action, player_ID, agent_ID):
+    def next_state(self, state, action, agent_pos, player_ID, agent_ID):
         state = dcopy(state)
-            
         if agent_ID == self.n_agents - 1:
             player_ID = 1 - player_ID
             agent_ID = 0
@@ -764,8 +722,22 @@ class Environment(object):
             state[2][0] = dcopy(state[2][1])
             state[2][1] = temp
             
-        state[-1] = self.get_agent_state(agent_ID, self.agent_pos[player_ID])
-        return self.soft_step_(state, action), player_ID, agent_ID
+        score_board, agent_board, conquer_board, treasure_board, wall_board = state
+        x, y = agent_pos[player_ID][agent_ID]
+        new_pos = (self.next_action(x, y, action))
+        _x, _y = new_pos
+        if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and wall_board[_x][_y] == 0:
+            if agent_board[0][_x][_y] == 0 and agent_board[1][_x][_y] == 0:
+                if conquer_board[1][_x][_y] == 0:
+                    agent_board[0][_x][_y] = 1
+                    agent_board[0][x][y] = 0
+                    conquer_board[0][_x][_y] = 1
+                    treasure_board[_x][_y] = 0
+                    agent_pos[player_ID][agent_ID] = [_x, _y]
+                else:
+                    conquer_board[1][_x][_y] = 0
+        state = [score_board, agent_board, conquer_board, treasure_board, wall_board]
+        return state, agent_pos, player_ID, agent_ID
             
     def get_return(self, state, old_state, player_ID):
         return 1 if self.get_score(state, old_state, player_ID) >= 0 else -1

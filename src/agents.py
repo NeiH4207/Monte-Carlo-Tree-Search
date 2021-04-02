@@ -36,17 +36,12 @@ class Agent():
         self.device = 'cuda' if self.use_cuda else 'cpu'
         
         self.model = Policy(env, self.args)
-        self.target_model = dcopy(self.model)
         self.model.to(self.device)
         if self.args.load_checkpoint:
             self.load_models()
         
         self.memories = ReplayMemory(self.args.replay_memory_size, self.args.batch_size)
             
-            
-    def set_environment(self, n_agents):
-        self.n_agents = n_agents
-        
     def convert_one_hot(self, action):
         n_values = self.action_dim
         return np.eye(n_values, dtype = np.float32)[action]
@@ -73,8 +68,8 @@ class Agent():
         y_pred = Q( s1, a1)
         '''
         # gae = torch.zeros(1, 1).to
-        for i in reversed(range(len(rewards) - 1)):
-            rewards[i] = rewards[i + 1]
+        # for i in reversed(range(len(rewards) - 1)):
+        #     rewards[i] = rewards[i + 1]
             # r = rewards[i + 1]
             # rewards[i] = rewards[i] + self.args.gamma * r
             # gae = gae * self.args.gamma + rewards[i] - y_pred[i] + \
@@ -86,7 +81,7 @@ class Agent():
         advantage = y_exp - y_pred
         policy_loss = (-log_probs * advantage.detach()).mean()
         value_loss = advantage.pow(2).mean()
-        loss = policy_loss + 0.5 * value_loss - 0.001 * self.model.entropies
+        loss = policy_loss + 0.5 * value_loss - 0.0003 * self.model.entropies
         self.model.reset_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
@@ -145,9 +140,10 @@ class Agent():
         
         self.steps_done += 1
         
-    def select_action(self, state):
+    def select_action(self, state, agent):
         state = torch.FloatTensor(state).to(self.device)
-        _, prob, state_value = self.model(state)
+        agent = torch.FloatTensor(agent).to(self.device)
+        _, prob, state_value = self.model(state, agent)
         prob = Categorical(prob)
         act = prob.sample()
         if random() < self.random_rate:
@@ -157,134 +153,11 @@ class Agent():
         act = int(act.to('cpu').numpy())
         return act, log_p, state_value
     
-    # Player 'O' is max, in this case AI
-    def max(self):
-    
-        # Possible values for maxv are:
-        # -1 - loss
-        # 0  - a tie
-        # 1  - win
-    
-        # We're initially setting it to -2 as worse than the worst case:
-        maxv = -2
-    
-        px = None
-        py = None
-    
-        result = self.is_end()
-    
-        # If the game came to an end, the function needs to return
-        # the evaluation function of the end. That can be:
-        # -1 - loss
-        # 0  - a tie
-        # 1  - win
-        if result == 'X':
-            return (-1, 0, 0)
-        elif result == 'O':
-            return (1, 0, 0)
-        elif result == '.':
-            return (0, 0, 0)
-    
-        for i in range(0, 3):
-            for j in range(0, 3):
-                if self.current_state[i][j] == '.':
-                    # On the empty field player 'O' makes a move and calls Min
-                    # That's one branch of the game tree.
-                    self.current_state[i][j] = 'O'
-                    (m, min_i, min_j) = self.min()
-                    # Fixing the maxv value if needed
-                    if m > maxv:
-                        maxv = m
-                        px = i
-                        py = j
-                    # Setting back the field to empty
-                    self.current_state[i][j] = '.'
-        return (maxv, px, py)
-
-    # Player 'X' is min, in this case human
-    def min(self):
-    
-        # Possible values for minv are:
-        # -1 - win
-        # 0  - a tie
-        # 1  - loss
-    
-        # We're initially setting it to 2 as worse than the worst case:
-        minv = 2
-    
-        qx = None
-        qy = None
-    
-        result = self.is_end()
-    
-        if result == 'X':
-            return (-1, 0, 0)
-        elif result == 'O':
-            return (1, 0, 0)
-        elif result == '.':
-            return (0, 0, 0)
-    
-        for i in range(0, 3):
-            for j in range(0, 3):
-                if self.current_state[i][j] == '.':
-                    self.current_state[i][j] = 'X'
-                    (m, max_i, max_j) = self.max()
-                    if m < minv:
-                        minv = m
-                        qx = i
-                        qy = j
-                    self.current_state[i][j] = '.'
-    
-        return (minv, qx, qy)
-    
-    def select_action_minimax(self, state):
-        cur_depth = 0
-        DEEPEST = 5
-        while True:
-           if cur_depth < DEEPEST:
-               if self.result == 'X':
-                   print('The winner is X!')
-               elif self.result == 'O':
-                   print('The winner is O!')
-               elif self.result == '.':
-                   print("It's a tie!")
-   
-   
-               self.initialize_game()
-               return
-   
-           if self.player_turn == 'X':
-   
-               while True:
-                   start = time.time()
-                   (m, qx, qy) = self.min_alpha_beta(-2, 2)
-                   end = time.time()
-                   print('Evaluation time: {}s'.format(round(end - start, 7)))
-                   print('Recommended move: X = {}, Y = {}'.format(qx, qy))
-   
-                   px = int(input('Insert the X coordinate: '))
-                   py = int(input('Insert the Y coordinate: '))
-   
-                   qx = px
-                   qy = py
-   
-                   if self.is_valid(px, py):
-                       self.current_state[px][py] = 'X'
-                       self.player_turn = 'O'
-                       break
-                   else:
-                       print('The move is not valid! Try again.')
-   
-           else:
-               (m, px, py) = self.max_alpha_beta(-2, 2)
-               self.current_state[px][py] = 'O'
-               self.player_turn = 'X'
-           cur_depth += 1
-        return 1
-    
-    def select_action_exp(self, state, action):
+    def select_action_by_exp(self, state, agent, action):
         state = torch.FloatTensor(state).to(self.device)
-        prob, state_value = self.model(state)
+        agent = torch.FloatTensor(agent).to(self.device)
+        _, prob, state_value = self.model(state, agent)
+        prob = Categorical(prob)
         log_p = prob.log_prob(torch.tensor(action).to(self.device))
         self.model.entropies += prob.entropy().mean()
         return action, log_p, state_value
@@ -292,14 +165,14 @@ class Agent():
         
     def select_action_smart(self, state, agent_pos, env):
         score_matrix, agents_matrix, conquer_matrix, \
-                       treasures_matrix, walls_matrix, _= [dcopy(_) for _ in state]
-        actions = [0] * self.n_agents
+                       treasures_matrix, walls_matrix = [dcopy(_) for _ in state]
+        actions = [0] * env.n_agents
         state = dcopy(state)
         agent_pos = dcopy(agent_pos)
         init_score = 0
-        order = shuffle(range(self.n_agents))
+        order = shuffle(range(env.n_agents))
         
-        for i in range(self.n_agents):
+        for i in range(env.n_agents):
             agent_id = order[i]
             
             act = 0

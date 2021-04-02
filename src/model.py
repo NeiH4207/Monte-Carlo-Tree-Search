@@ -35,7 +35,8 @@ class Policy(nn.Module):
         self.bn2 = nn.BatchNorm2d(args.num_channels).to(self.device)
         self.bn3 = nn.BatchNorm2d(args.num_channels).to(self.device)
         self.bn4 = nn.BatchNorm2d(args.num_channels).to(self.device)
-        self.fc1 = nn.Linear(args.num_channels * (self.board_x - 4)*(self.board_y - 4), 1024).to(self.device)
+        self.fc1 = nn.Linear(args.num_channels*(self.board_x - 4)*(self.board_y - 4) \
+                             + env.max_n_agent + 1, 1024).to(self.device)
         self.fc_bn1 = nn.BatchNorm1d(1024).to(self.device)
 
         self.fc2 = nn.Linear(1024, 512).to(self.device)
@@ -57,7 +58,7 @@ class Policy(nn.Module):
         else:
             self.optimizer = SGD(self.parameters(), lr=self.lr)
 
-    def forward(self, s):
+    def forward(self, s, agent):
         #                                                           s: batch_size x n_inputs x board_x x board_y
         s = s.view(-1, self.n_inputs, self.board_x, self.board_y)    # batch_size x n_inputs x board_x x board_y
         s = F.relu(self.bn1(self.conv1(s)))                          # batch_size x num_channels x board_x x board_y
@@ -65,15 +66,16 @@ class Policy(nn.Module):
         s = F.relu(self.bn3(self.conv3(s)))                          # batch_size x num_channels x (board_x-2) x (board_y-2)
         s = F.relu(self.bn4(self.conv4(s)))                          # batch_size x num_channels x (board_x-4) x (board_y-4)
         s = s.view(-1, self.args.num_channels*(self.board_x-4)*(self.board_y-4))
+        s = torch.cat((s,agent),dim=1)
         s = F.dropout(F.relu(self.fc1(s)), p=self.args.dropout, training=self.training)  # batch_size x 1024
         s = F.dropout(F.relu(self.fc2(s)), p=self.args.dropout, training=self.training)  # batch_size x 512
 
         pi = self.fc3(s)                                                                         # batch_size x action_size
         v = self.fc4(s)                                                                          # batch_size x 1
 
-        return pi, F.log_softmax(pi, dim=1), torch.tanh(v)
+        return pi, F.softmax(pi, dim=1), torch.tanh(v)
     
-    def step(self, obs):
+    def step(self, obs, agent):
         """
         Returns policy and value estimates for given observations.
         :param obs: Array of shape [N] containing N observations.
@@ -81,15 +83,15 @@ class Policy(nn.Module):
         the given observations.
         """
         obs = torch.from_numpy(obs).to(self.device)
-        _, pi, v = self.forward(obs)
+        agent = torch.from_numpy(agent).to(self.device)
+        _, pi, v = self.forward(obs, agent)
 
         return pi.detach().to('cpu').numpy(), v.detach().to('cpu').numpy()
 
-    def store(self, prob, state_value, reward, next_state):
+    def store(self, prob, state_value, reward):
         self.action_probs.append(prob)
         self.state_values.append(state_value)
         self.rewards.append(reward)
-        self.next_states.append(next_state)
     
     def clear(self):
         self.action_probs = []

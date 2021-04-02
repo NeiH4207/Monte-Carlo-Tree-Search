@@ -1,235 +1,168 @@
 from __future__ import division
 import random
-from copy import deepcopy as dcopy
-
 from src.environment import Environment
 from src.agents import Agent
 from read_input import Data
 from itertools import count
 import numpy as np
-from src.utils import flatten
 from collections import deque
 import time
-from src.utils import plot
+from src.utils import plot, dotdict, dtanh
 
-def train(args, args_2): 
-    data = Data(args.min_size, args.max_size)
-    env = Environment(data.get_random_map(), args.show_screen, args.max_size)
-    agent_1 = Agent(env, args, 'agent_procon_1')  
-    agent_2 = Agent(env, args_2, 'agent_procon_2')  
-    visual_mean_value_1 = deque(maxlen = 20000)
-    visual_mean_value_2 = deque(maxlen = 20000)
-    visual_mean_value_3 = deque(maxlen = 20000)
-    visual_mean_value_4 = deque(maxlen = 20000)
-    visual_value_1 = deque(maxlen = 1000)
-    visual_value_2 = deque(maxlen = 1000)
-    visual_value_3 = deque(maxlen = 1000)
-    visual_value_4 = deque(maxlen = 1000)
-    lr_super = args.lr_super
-    lr_super_2 = args_2.lr_super
-    
-    cnt_w = 0
-    cnt_l = 0
-    
-    for _ep in range(args.n_epochs):
-        print('Training_epochs: {}'.format(_ep + 1))
-        agent_1.set_environment(env.n_agents)
-        agent_2.set_environment(env.n_agents)
+cargs = dotdict({
+    'run_mode': 'train',
+    'visualize': True,
+    'min_size': 8,
+    'max_size': 8,
+    'n_games': 10,
+    'num_iters': 20000,
+    'n_epochs': 1000000,
+    'n_maps': 1000,
+    'show_screen': True
+})
+
+args = [
+        dotdict({
+            'optimizer': 'adas',
+            'lr': 1e-4,
+            'exp_rate': 0.0,
+            'gamma': 0.99,
+            'tau': 0.01,
+            'max_grad_norm': 0.3,
+            'discount': 0.999,
+            'num_channels': 64,
+            'batch_size': 256,
+            'replay_memory_size': 100000,
+            'dropout': 0.4,
+            'initial_epsilon': 0.1,
+            'final_epsilon': 1e-4,
+            'dir': './Models/',
+            'load_checkpoint': False,
+            'saved_checkpoint': True
+        }),
         
-        for _game in range(args.n_games):
+        dotdict({
+            'optimizer': 'adas',
+            'lr': 1e-4,
+            'exp_rate': 0.0,
+            'gamma': 0.99,
+            'tau': 0.01,
+            'max_grad_norm': 0.3,
+            'discount': 0.999,
+            'batch_size': 256,
+            'num_channels': 64,
+            'replay_memory_size': 100000,
+            'dropout': 0.4,
+            'initial_epsilon': 0.1,
+            'final_epsilon': 1e-4,
+            'dir': './Models/',
+            'load_checkpoint': False,
+            'saved_checkpoint': True
+        })
+]
+
+def train(): 
+    data = Data(cargs.min_size, cargs.max_size)
+    env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
+    agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'agent_2')]
+    wl_mean, score_mean, l_val_mean =\
+        [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(3)]
+    wl, score, l_val = [[deque(maxlen = 100), deque(maxlen = 100)] for _ in range(3)]
+    lr_super = [args[0].exp_rate, args[1].exp_rate]
+    cnt_w, cnt_l = 0, 0
+        
+    for _ep in range(cargs.n_epochs):
+        print('Training_epochs: {}'.format(_ep + 1))
+        for _game in range(cargs.n_games):
             done = False
             start = time.time()
             for _iter in count():
-                if args.show_screen:
+                if cargs.show_screen:
                     env.render()
-                # initialize
-                # print('st')
-                # print(env.conquer_board)
-                states_1, actions_1, state_values_1, log_probs_1, rewards_1 = [], [], [], [], []
-                states_2, actions_2, state_values_2, log_probs_2, rewards_2 = [], [], [], [], []
-                # update by step
-                soft_state_1 = env.get_observation(0)
-                soft_agent_pos_1 = env.get_agent_pos(0)
-                
-                soft_state_2 = env.get_observation(1)
-                soft_agent_pos_2 = env.get_agent_pos(1)
-                
-                predict_actions_1 = agent_1.select_action_smart(soft_state_1, soft_agent_pos_1, env)
-                predict_actions_2 = agent_2.select_action_smart(soft_state_2, soft_agent_pos_2, env)
+                    
+                """ initialize """
+                actions, state_vals, log_probs, rewards, soft_state, \
+                    soft_agent_pos, pred_acts = [[[], []] for i in range(7)]
+                    
+                """ update by step """
+                for i in range(env.num_players):
+                    soft_state[i] = env.get_observation(i)
+                    soft_agent_pos[i] = env.get_agent_pos(i)
+                    pred_acts[i] = agent[i].select_action_smart(soft_state[i], soft_agent_pos[i], env)
 
-                # fit for each agent
+                """ select action for each agent """
                 for agent_id in range(env.n_agents):
-                    agent_state_1 = env.get_obs_for_states(
-                        [soft_state_1, env.get_agent_state(agent_id, soft_agent_pos_1)])
-                    if random.random() < lr_super:
-                        action_1, log_prob_1, state_value_1 = agent_1.select_action_exp(agent_state_1, predict_actions_1[agent_id])
-                    else:
-                        action_1, log_prob_1, state_value_1 = agent_1.select_action(agent_state_1)
-                    state_values_1.append(state_value_1)
-                    valid_1, next_state_1, reward_1 = \
-                        env.soft_step(agent_id, soft_state_1, action_1, soft_agent_pos_1)
-                    soft_state_1 = next_state_1
-                    
-                    states_1.append(agent_state_1)
-                    actions_1.append(action_1)
-                    log_probs_1.append(log_prob_1)
-                    rewards_1.append(reward_1)
-                    
-                    agent_state_2 = np.array(flatten([soft_state_2, env.get_agent_state(agent_id, soft_agent_pos_2)]))
-                    if random.random() < lr_super_2:
-                        action_2, log_prob_2, state_value_2 = agent_2.select_action_exp(agent_state_2, predict_actions_2[agent_id])
-                    else:
-                        action_2, log_prob_2, state_value_2 = agent_2.select_action(agent_state_2)
-                        
-                    action_2, log_prob_2, state_value_2 = agent_2.select_action(agent_state_2)
-                    state_values_2.append(state_value_2)
-                    valid_2, next_state_2, reward_2 = env.soft_step(agent_id, soft_state_2, action_2, soft_agent_pos_2)
-                    soft_state_2 = next_state_2
-                    states_2.append(agent_state_2)
-                    actions_2.append(action_2)
-                    log_probs_2.append(log_prob_2)
-                    rewards_2.append(reward_2)
-                    # actions_2.append(np.random.randint(0, env.n_actions - 1))
-                # actions_2 = [0] * env.n_agents
-                # actions_2 = agent_2.select_action_smart(soft_state_2, soft_agent_pos_2, env)
-                # time.sleep(100000000)
-                next_state, final_reward, done, _ = env.step(actions_1, actions_2, args.show_screen)
-                # print(rewards_1)
-                # print(env.conquer_board)
+                    for i in range(env.num_players):
+                        agent_state = env.get_states_for_step(soft_state[i])
+                        agent_step = env.get_agent_for_step(agent_id)
+                        act, log_p, state_val = 0, 0, 0
+                        if random.random() < lr_super[i]:
+                            act, log_p, state_val = agent[i].select_action_by_exp(
+                                agent_state, agent_step, pred_acts[i][agent_id])
+                            # if i == 1:
+                            #     act = np.random.randint(0, env.n_actions - 1)
+                        else:
+                            act, log_p, state_val = agent[i].select_action(agent_state, agent_step)
+                                
+                        valid, next_state, reward =  env.soft_step(agent_id, soft_state[i], act, soft_agent_pos[i])
+                        soft_state[i] = next_state
+                        state_vals[i].append(state_val)
+                        actions[i].append(act)
+                        log_probs[i].append(log_p)
+                        rewards[i].append(reward)
+                # actions[1] = [np.random.randint(0, env.n_actions - 1) for _ in range(env.n_agents)]
+                # actions[1] = [0] * env.n_agents
+                # actions[1] = pred_acts[1]
+                next_state, final_reward, done, _ = env.step(actions[0], actions[1], cargs.show_screen)
+                beta = dtanh(env.remaining_turns)
                 for i in range(env.n_agents):
-                    # beta = 1.0
-                    # rewards_1[i] = rewards_1[i] * beta + final_reward * (1 - beta) / env.n_agents
-                    # rewards_2[i] = 0
-                    if done:
-                        if i == env.n_agents - 1:
-                            rewards_1[i] = final_reward
-                            rewards_2[i] = - final_reward
-                    agent_1.model.store(log_probs_1[i], state_values_1[i], rewards_1[i], next_state_1)
-                    agent_2.model.store(log_probs_2[i], state_values_2[i], rewards_2[i], next_state_2)
-                
-                # print(env.conquer_board)
-                # print('end')
+                    # print(rewards)
+                    rewards[0][i] = rewards[0][i] * (1 - beta)  + beta * final_reward
+                    rewards[1][i] = rewards[1][i] * (1 - beta)  - beta * final_reward
+                    for j in range(env.num_players):
+                        agent[j].model.store(log_probs[j][i], state_vals[j][i], rewards[j][i])
                 if done:
-                    visual_value_3.append(env.players[0].total_score)
+                    score[0].append(env.players[0].total_score)
+                    score[1].append(env.players[1].total_score)
                     if env.players[0].total_score > env.players[1].total_score:
                         cnt_w += 1
                     else:
                         cnt_l += 1
                     break
-            agent_1.learn()
-            agent_2.learn()
+            agent[0].learn()
+            agent[1].learn()
             end = time.time()
-            visual_value_4.append(agent_1.value_loss)
-            visual_value_2.append(cnt_l)
-            visual_value_1.append(cnt_w)
-            visual_mean_value_1.append(np.mean(visual_value_1))
-            visual_mean_value_2.append(np.mean(visual_value_2))
-            visual_mean_value_3.append(np.mean(visual_value_3))
-            visual_mean_value_4.append(np.mean(visual_value_4))
-            if agent_1.steps_done % 50 == 0:
-                plot(visual_mean_value_1, False, 'red')
-                plot(visual_mean_value_2, True, 'blue')
-                plot(visual_mean_value_3, True, 'red')
-                plot(visual_mean_value_4, True, 'blue')
-                print("Time: {0: >#.3f}s". format(1000*(end - start)))
-            if args.saved_checkpoint:
-                if _game % 50 == 0:
-                    agent_1.save_models()
-                    # agent_2.save_models()
+            l_val[0].append(agent[0].value_loss)
+            l_val[1].append(agent[1].value_loss)
+            wl[0].append(cnt_w)
+            wl[1].append(cnt_l)
+            for i in range(2):
+                wl_mean[i].append(np.mean(wl[i]))
+                score_mean[i].append(np.mean(score[i]))
+                l_val_mean[i].append(np.mean(l_val[i]))
+            
             env.soft_reset()
-        # print('Completed episodes', lr_super)
-        lr_super *= 0.985
-        env.punish = 0
-        env = Environment(data.get_random_map(), args.show_screen, args.max_size)
+        if _ep % 10 == 9:
+            if cargs.visualize:
+                plot(wl_mean[0], False, 'red')
+                plot(wl_mean[1], True, 'blue')
+                plot(score_mean[0], False, 'red')
+                plot(score_mean[1], True, 'blue')
+                plot(l_val_mean[0], False, 'red')
+                plot(l_val_mean[1], True, 'blue')
+                print("Time: {0: >#.3f}s". format(1000*(end - start)))
+            if args[0].saved_checkpoint:
+                agent[0].save_models()
+            if args[1].saved_checkpoint:
+                agent[1].save_models()
+        # print('Completed episodes')
+        # lr_super *= 0.999
+        # env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
 
 """
 Created on Fri Nov 27 16:00:47 2020
 @author: hien
 """
-import argparse
-from test_model1 import test_env
-
-def get_args_1():
-    parser = argparse.ArgumentParser("""Implementation of Deep Q Network to play Procon""")
-    parser.add_argument("--file_name", default = "input.txt")
-    parser.add_argument("--type", default = "1")
-    parser.add_argument("--run", type=str, default="train")   
-    parser.add_argument("--min_size", type=int, default= 10)   
-    parser.add_argument("--max_size", type=int, default= 10)   
-    parser.add_argument("--image_size", type=int, default=84, help="The common width and height for all images")
-    parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
-    parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--lr_super", type=float, default=0.0)
-    parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--tau", type=float, default=0.01)
-    parser.add_argument("--max_grad_norm", type=float, default=0.3)
-    parser.add_argument("--discount", type=float, default=0.999)   
-    parser.add_argument("--num_channels", type=int, default=64)   
-    parser.add_argument("--dropout", type=float, default=0.3)   
-    parser.add_argument("--initial_epsilon", type=float, default=0.1)
-    parser.add_argument("--final_epsilon", type=float, default=1e-4)
-    parser.add_argument("--num_iters", type=int, default=20000)
-    parser.add_argument("--replay_memory_size", type=int, default=100000,
-                        help="Number of epoches between testing phases")
-    parser.add_argument("--n_games", type=int, default=5)
-    parser.add_argument("--n_maps", type=int, default=1000)
-    parser.add_argument("--n_epochs", type=int, default=1000000)
-    parser.add_argument("--log_path", type=str, default="tensorboard")
-    parser.add_argument("--saved_path", type=str, default="trained_models")
-    parser.add_argument("--test_model", type=bool, default=False)
-    parser.add_argument("--dir", type=str, default='./Models/')
-    parser.add_argument("--model_name", type=str, default='model')
-    parser.add_argument("--show_screen", type=str, default=True)
-    parser.add_argument("--load_checkpoint", type=str, default=False)
-    parser.add_argument("--saved_checkpoint", type=str, default=True) 
-    
-    args, unknown = parser.parse_known_args()
-    return args
-
-
-def get_args_2():
-    parser = argparse.ArgumentParser("""Implementation of Deep Q Network to play Procon""")
-    parser.add_argument("--file_name", default = "input.txt")
-    parser.add_argument("--type", default = "1")
-    parser.add_argument("--run", type=str, default="train")   
-    parser.add_argument("--min_size", type=int, default= 10)   
-    parser.add_argument("--max_size", type=int, default= 10)   
-    parser.add_argument("--image_size", type=int, default=84, help="The common width and height for all images")
-    parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
-    parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--lr_super", type=float, default=0.0)
-    parser.add_argument("--gamma", type=float, default=1.0)
-    parser.add_argument("--tau", type=float, default=0.01)
-    parser.add_argument("--max_grad_norm", type=float, default=0.3)
-    parser.add_argument("--discount", type=float, default=0.999)   
-    parser.add_argument("--num_channels", type=int, default=64)   
-    parser.add_argument("--dropout", type=float, default=0.3)   
-    parser.add_argument("--initial_epsilon", type=float, default=0.1)
-    parser.add_argument("--final_epsilon", type=float, default=1e-4)
-    parser.add_argument("--num_iters", type=int, default=20000)
-    parser.add_argument("--replay_memory_size", type=int, default=100000,
-                        help="Number of epoches between testing phases")
-    parser.add_argument("--n_games", type=int, default=5)
-    parser.add_argument("--n_maps", type=int, default=1000)
-    parser.add_argument("--n_epochs", type=int, default=1000000)
-    parser.add_argument("--log_path", type=str, default="tensorboard")
-    parser.add_argument("--saved_path", type=str, default="trained_models")
-    parser.add_argument("--test_model", type=bool, default=False)
-    parser.add_argument("--dir", type=str, default='./Models/')
-    parser.add_argument("--model_name", type=str, default='model')
-    parser.add_argument("--show_screen", type=str, default=True)
-    parser.add_argument("--load_checkpoint", type=str, default=False)
-    parser.add_argument("--saved_checkpoint", type=str, default=True)   
-    
-    args, unknown = parser.parse_known_args()
-    return args
-
 if __name__ == "__main__":
-    args_1 = get_args_1()
-    args_2 = get_args_2()
-    if args_1.run == "train":
-        train(args_1, args_2)
-    if args_1.run == "test_model":
-        test_env(args_1)
+    if cargs.run_mode == "train":
+        train()

@@ -41,7 +41,7 @@ class Data():
             turns = random.randint(30, 70)
             
             # n_agents = random.randint(2, 8)
-            n_agents = 1
+            n_agents = 2
             
             coord = [0] * (n_agents * 2)
             
@@ -127,9 +127,9 @@ class Data():
                 score_matrix[i][j] =  value
                 score_matrix[height- i - 1][width- j - 1] = value
         
-        turns = random.randint(5, 15)
+        turns = random.randint(5, 6)
         
-        n_agents = random.randint(2, 8)
+        n_agents = random.randint(1, 1)
         # n_agents = 2
         agent_pos = [[], []]
         
@@ -145,7 +145,7 @@ class Data():
             agent_pos[1]. append( [height - _x - 1, width - _y - 1])
         
             
-        num_treasures = random.randint(4, 8)
+        num_treasures = random.randint(2, 5)
         # num_treasures = 0
         treasures = []
         for j in range(num_treasures):

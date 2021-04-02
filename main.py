@@ -37,11 +37,14 @@ def execute_episode(agent_netw, num_simulations, env, args):
     mcts = MCTS(agent_netw, env)
     mcts.initialize_search()
 
-    # Must run this once at the start, so that noise injection actually affects
-    # the first action of the episode.
+    """
+    Must run this once at the start, so that noise injection actually affects
+    the first action of the episode.
+    """
     
     first_node = mcts.root.select_leaf()
-    probs, vals = agent_netw.step(env.get_obs_for_states(first_node.state))
+    probs, vals = agent_netw.step(env.get_states_for_step(first_node.state),
+                                  env.get_agent_for_step(0))
     first_node.incorporate_estimates(probs[0], vals[0], first_node)
     
     while True:
@@ -75,7 +78,7 @@ def execute_episode(agent_netw, num_simulations, env, args):
             actions_2[i] = action
         # print(actions_1, actions_2)
         next_state, final_reward, done, _ = env.step(actions_1, actions_2, args.show_screen)
-        mcts.root.state = env.get_state(0, 0)
+        mcts.root.state = env.get_state(0)
         if mcts.root.is_done():
             break
     
@@ -103,9 +106,7 @@ def train(args):
     
     for _ep in range(args.n_epochs):
         print('Training_epochs: {}'.format(_ep + 1))
-        
         for _game in range(args.n_games):
-            
             start = time.time()
             obs, pis, returns = execute_episode(model, 128, env, args)
             mem.add_all([obs, pis, returns])
@@ -229,7 +230,7 @@ def get_args():
     parser.add_argument("--test_model", type=bool, default=False)
     parser.add_argument("--dir", type=str, default='./Models/')
     parser.add_argument("--model_name", type=str, default='model')
-    parser.add_argument("--show_screen", type=str, default=True)
+    parser.add_argument("--show_screen", type=str, default=False)
     parser.add_argument("--load_checkpoint", type=str, default=False)
     parser.add_argument("--saved_checkpoint", type=str, default=True)   
     
