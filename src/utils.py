@@ -41,7 +41,7 @@ def plot(values, export = True, cl = 'red', x_title = 'iteration', y_title = 'Sc
     ax.set_ylabel(y_title)
     ax.plot(values, color = cl)
     if export:
-        plt.savefig('./Experiments' + y_title + '.pdf',bbox_inches='tight')
+        plt.savefig('./Experiments/' + y_title + '.pdf',bbox_inches='tight')
         plt.show()
 
 
