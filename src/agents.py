@@ -149,6 +149,8 @@ class Agent():
         act = prob.sample()
         if random() < self.random_rate:
             act = torch.tensor(randint(0, self.n_actions - 1)).to(self.device)
+            self.random_rate *= 0.9999
+            self.random_rate = max(self.random_rate, self.args.final_epsilon)
         log_p = prob.log_prob(act)
         self.model.entropies += prob.entropy().mean()
         act = int(act.to('cpu').numpy())
@@ -172,6 +174,7 @@ class Agent():
         agent_pos = dcopy(agent_pos)
         init_score = 0
         order = shuffle(range(env.n_agents))
+        exp_rewards = [0] * env.n_agents
         
         for i in range(env.n_agents):
             agent_id = order[i]
@@ -181,29 +184,30 @@ class Agent():
             mn = 1000
             mx = -1000
             valid_states = []
-            for act in range(8):
+            for act in range(env.n_actions):
                 _state, _agent_pos = dcopy([state, agent_pos])
                 valid, next_state, reward = env.soft_step(agent_id, _state, act, _agent_pos, predict=True)
                 scores[act] = reward - init_score
                 mn = min(mn, reward - init_score)
                 mx = max(mx, reward - init_score)
                 valid_states.append(valid)
-                
-            scores[0] = mn
-            for j in range(len(scores)):
-                scores[j] = (scores[j] - mn) / (mx - mn + 0.0001)
+            
+            # _scores = dcopy(scores)
+            # scores[0] = mn
+            # for j in range(len(scores)):
+            #     scores[j] = (scores[j] - mn) / (mx - mn + 0.0001)
     
-            sum = np.sum(scores) + 0.0001
-            for j in range(len(scores)):
-                scores[j] = scores[j] / sum
-                if valid_states[j] is False:
-                    scores[j] = 0
+            # sum = np.sum(scores) + 0.0001
+            # for j in range(len(scores)):
+            #     scores[j] = scores[j] / sum
+            #     if valid_states[j] is False:
+            #         scores[j] = 0
             act = np.array(scores).argmax()
             valid, state, score = env.soft_step(agent_id, state, act, agent_pos, predict=True)
             init_score = score
             actions[agent_id] = act
-            
-        return actions
+            exp_rewards[agent_id] = mx
+        return actions, exp_rewards
     
     def select_action_test_not_predict(self, state):
         actions = []

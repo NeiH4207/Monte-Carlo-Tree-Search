@@ -27,14 +27,14 @@ def vizualize(arr, name, cl = 'red'):
     plt.ylabel("Loss value")
 #     plt.xlim(-3, 3)
 #     plt.ylim(1000, 1220)
-    plt.plot(arr, color = cl, linewidth = 1.25)
+    plt.plot(arr, color = cl, linewidth = 0.9)
     # plt.legend(bbox_to_anchor=(0.785, 1), loc='upper left', borderaxespad=0.1)
     # name = name + '.pdf'
     plt.savefig(name,bbox_inches='tight')
     plt.show()
     
 def plot(values, export = True, cl = 'red', x_title = 'iteration', y_title = 'Scores'):
-    ax = plt.figure(num=1, figsize=(4, 3)).gca()
+    ax = plt.figure(num=1, figsize=(5, 3), dpi=100).gca()
     ax.grid()
     plt.xlabel("Iteration")
     ax.set_xlabel('Episode')

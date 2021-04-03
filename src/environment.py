@@ -342,24 +342,22 @@ class Environment(object):
             area scores of players.
 
         """
-        score_board = state[ScoreBoardID]
-        conquer_board = state[ConquerID]
         treasure_board = state[TreasureID]
         title_scores = [0, 0]
         treasure_score = [0, 0]
         area_scores = [0, 0]
         for i in range(self.height):
             for j in range(self.width):
-                if conquer_board[0][i][j] == 1:
-                    title_scores[0] += score_board[i][j]
-                if conquer_board[1][i][j] == 1:
-                    title_scores[1] += score_board[i][j]
-                if treasure_board[i][j] > 0 and old_state[ConquerID][0][i][j] == 0 \
+                if state[ConquerID][0][i][j] == 1:
+                    title_scores[0] += state[ScoreBoardID][i][j]
+                if state[ConquerID][1][i][j] == 1:
+                    title_scores[1] += state[ScoreBoardID][i][j]
+                if state[TreasureID][i][j] > 0 and old_state[ConquerID][0][i][j] == 0 \
                         and old_state[ConquerID][1][i][j] == 0:
-                    if conquer_board[0][i][j] == 1:
-                        treasure_score[0] += treasure_board[i][j]
-                    if conquer_board[1][i][j] == 1:
-                        treasure_score[1] += treasure_board[i][j]
+                    if state[ConquerID][0][i][j] == 1:
+                        state[TreasureID][0] += treasure_board[i][j]
+                    if state[ConquerID][1][i][j] == 1:
+                        state[TreasureID][1] += treasure_board[i][j]
                         
         for player_ID in range(self.num_players):
             area_scores[player_ID] = self.compute_score_area(state, player_ID)
@@ -493,9 +491,27 @@ class Environment(object):
             reward = (title_scores[0] + treasures_scores[0] + area_scores [0] + aux_score\
                 - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score)
         else:
-            reward = -self.range_bound * 0.5
+            reward = - 0.5
             
         return valid, state, reward
+    
+    def soft_step_(self, agent_id, state, act, agent_pos):
+        score_board, agent_board, conquer_board, treasure_board, wall_board = state
+        x, y = agent_pos[agent_id][0], agent_pos[agent_id][1]     
+        new_pos = self.next_action(x, y, act)
+        _x, _y = new_pos
+        if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and wall_board[_x][_y] == 0:
+            if agent_board[0][_x][_y] == 0 and agent_board[1][_x][_y] == 0:
+                if conquer_board[1][_x][_y] == 0:
+                    agent_board[0][_x][_y] = 1
+                    agent_board[0][x][y] = 0
+                    conquer_board[0][_x][_y] = 1
+                    agent_pos[agent_id][0] = _x
+                    agent_pos[agent_id][1] = _y
+                else:
+                    conquer_board[1][_x][_y] = 0
+                    
+        return state
     
     def get_next_action_pos(self, action_1, action_2):
         new_pos = [[], []]

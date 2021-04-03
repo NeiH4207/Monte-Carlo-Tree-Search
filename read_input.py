@@ -105,10 +105,10 @@ class Data():
             for _pair in wall_coord:
                 f.write(str(_pair[0]) + ' ' + str(_pair[1]) + '\n')
     
-    def get_random_map(self, turns = random.randint(10, 30), 
-                       n_agents = random.randint(2, 8), 
-                       n_treasures = random.randint(int(5), 10), 
-                       n_walls = random.randint(5, 10)):
+    def get_random_map(self, turns = random.randint(5, 10), 
+                       n_agents = random.randint(2, 2), 
+                       n_treasures = random.randint(int(1), 3), 
+                       n_walls = random.randint(1, 3)):
         height = random.randint(self.MIN_SIZE, self.MAX_SIZE)
         # width = random.randint(self.MIN_SIZE, self.MAX_SIZE)
         width = height

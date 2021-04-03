@@ -13,8 +13,8 @@ from src.utils import plot, dotdict, dtanh
 cargs = dotdict({
     'run_mode': 'train',
     'visualize': True,
-    'min_size': 10,
-    'max_size': 20,
+    'min_size': 7,
+    'max_size': 7,
     'n_games': 10,
     'num_iters': 20000,
     'n_epochs': 1000000,
@@ -26,7 +26,7 @@ args = [
         dotdict({
             'optimizer': 'adas',
             'lr': 1e-4,
-            'exp_rate': 0.1,
+            'exp_rate': 0.0,
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
@@ -38,14 +38,14 @@ args = [
             'initial_epsilon': 0.1,
             'final_epsilon': 1e-4,
             'dir': './Models/',
-            'load_checkpoint': False,
+            'load_checkpoint': True,
             'saved_checkpoint': True
         }),
         
         dotdict({
             'optimizer': 'adas',
             'lr': 1e-4,
-            'exp_rate': 0.1,
+            'exp_rate': 0.0,
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
@@ -55,9 +55,9 @@ args = [
             'replay_memory_size': 100000,
             'dropout': 0.4,
             'initial_epsilon': 0.1,
-            'final_epsilon': 1e-4,
+            'final_epsilon': 0.01,
             'dir': './Models/',
-            'load_checkpoint': False,
+            'load_checkpoint': True,
             'saved_checkpoint': True
         })
 ]
@@ -85,13 +85,13 @@ def train():
                     
                 """ initialize """
                 actions, state_vals, log_probs, rewards, soft_state, \
-                    soft_agent_pos, pred_acts = [[[], []] for i in range(7)]
+                    soft_agent_pos, pred_acts, exp_rewards = [[[], []] for i in range(8)]
                     
                 """ update by step """
                 for i in range(env.num_players):
                     soft_state[i] = env.get_observation(i)
                     soft_agent_pos[i] = env.get_agent_pos(i)
-                    pred_acts[i] = agent[i].select_action_smart(soft_state[i], soft_agent_pos[i], env)
+                    pred_acts[i], exp_rewards[i] = agent[i].select_action_smart(soft_state[i], soft_agent_pos[i], env)
 
                 """ select action for each agent """
                 for agent_id in range(env.n_agents):
@@ -105,26 +105,28 @@ def train():
                         else:
                             act, log_p, state_val = agent[i].select_action(agent_state, agent_step)
                                 
-                        valid, next_state, reward =  env.soft_step(agent_id, soft_state[i], act, soft_agent_pos[i])
-                        soft_state[i] = next_state
+                        soft_state[i] = env.soft_step_(agent_id, soft_state[i], act, soft_agent_pos[i])
                         state_vals[i].append(state_val)
                         actions[i].append(act)
                         log_probs[i].append(log_p)
-                        rewards[i].append(reward)
                 # actions[1] = [np.random.randint(0, env.n_actions - 1) for _ in range(env.n_agents)]
                 # actions[1] = [0] * env.n_agents
                 # actions[1] = pred_acts[1]
                 next_state, final_reward, done, _ = env.step(actions[0], actions[1], cargs.show_screen)
                 for i in range(env.n_agents):
                     # print(rewards)
-                    if done:
-                        rewards[0][i] = final_reward
-                        rewards[1][i] = - final_reward
-                    else:
-                        beta = 0.5
-                        rewards[0][i] = rewards[0][i] * (1 - beta)  + beta * final_reward
-                        rewards[1][i] = rewards[1][i] * (1 - beta)  - beta * final_reward
+                    # if done:
+                    rewards[0].append(final_reward)
+                    rewards[1].append(- final_reward)
+                    # else:
+                    #     beta = 0.5
+                    #     rewards[0][i] = rewards[0][i] * (1 - beta)  + beta * final_reward
+                    #     rewards[1][i] = rewards[1][i] * (1 - beta)  - beta * final_reward
                     for j in range(env.num_players):
+                        if pred_acts[j][i] == actions[j][i]:
+                            reward = exp_rewards[j][i]
+                            beta = 1.0
+                            rewards[j][i] = rewards[j][i] * (1 - beta)  + beta * reward
                         agent[j].model.store(log_probs[j][i], state_vals[j][i], rewards[j][i])
                 if done:
                     score[0].append(env.players[0].total_score)
@@ -147,7 +149,7 @@ def train():
                 l_val_mean[i].append(np.mean(l_val[i]))
             
             env.soft_reset()
-        if _ep % 10 == 0:
+        if _ep % 10 == 9:
             if cargs.visualize:
                 plot(wl_mean[0], False, 'red', y_title = 'num_of_wins')
                 plot(wl_mean[1], True, 'blue',  y_title = 'num_of_wins')
@@ -164,7 +166,7 @@ def train():
                 # torch.save(agent[1].model.state_dict(), checkpoint_path_2)
         print('Completed episodes')
         # lr_super *= 0.999
-        env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
+        # env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
 
 """
 Created on Fri Nov 27 16:00:47 2020
