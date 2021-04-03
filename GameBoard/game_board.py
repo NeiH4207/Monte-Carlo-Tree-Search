@@ -71,7 +71,7 @@ class Screen():
                     
                 # draw treasure
                 if self.env.treasure_board[i][j] > 0:
-                    self.show_treasure_value(self.env.treasure_board[i][j], i, j)
+                    self.show_treasure_value(self.env.norm_treasure_board[i][j], i, j)
                     
                 # draw agent
         for player_id in range(self.env.num_players):
@@ -183,7 +183,7 @@ class Screen():
     def redraw_squares(self, x, y, player_ID):
         self._redraw_squares(2 + x * self.SQUARE_SIZE, 2 + y * self.SQUARE_SIZE,
                            (self.SQUARE_SIZE - 3), (self.SQUARE_SIZE - 3), player_ID)
-        self.show_value(self.env.score_board[x][y], x, y)
+        self.show_value(self.env.norm_score_board[x][y], x, y)
            
     def _reset_squares(self, x1, y1, x2, y2, player_ID):
         color = self.color_A if player_ID == 0 else self.color_B
@@ -198,7 +198,7 @@ class Screen():
         if player_ID >= 0:
             self.draw_agent(x, y, player_ID, agent_ID)
         else:
-            self.show_value(self.env.score_board[x][y], x, y)
+            self.show_value(self.env.norm_score_board[x][y], x, y)
         
     def reset(self):
         self.screen.fill( BG_COLOR )
@@ -216,7 +216,7 @@ class Screen():
                     
                 # draw treasure
                 if self.env.treasure_board[i][j] > 0:
-                    self.show_treasure_value(self.env.treasure_board[i][j], i, j)
+                    self.show_treasure_value(self.env.norm_treasure_board[i][j], i, j)
                     
                 # draw agent
         for player_id in range(self.env.num_players):

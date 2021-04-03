@@ -82,7 +82,7 @@ class Agent():
         advantage = y_exp - y_pred
         policy_loss = (-log_probs * advantage.detach()).mean()
         value_loss = advantage.pow(2).mean()
-        loss = policy_loss + 0.5 * value_loss - 0.0003 * self.model.entropies
+        loss = policy_loss + 0.5 * value_loss - 0.001 * self.model.entropies
         self.model.reset_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)

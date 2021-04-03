@@ -12,9 +12,9 @@ from src.utils import plot, dotdict, dtanh
 cargs = dotdict({
     'run_mode': 'train',
     'visualize': True,
-    'min_size': 7,
-    'max_size': 7,
-    'n_games': 2,
+    'min_size': 6,
+    'max_size': 6,
+    'n_games': 10,
     'num_iters': 20000,
     'n_epochs': 1000000,
     'n_maps': 1000,
@@ -29,7 +29,7 @@ args = [
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
-            'discount': 0.6,
+            'discount': 0.8,
             'num_channels': 64,
             'batch_size': 256,
             'replay_memory_size': 100000,
@@ -37,8 +37,8 @@ args = [
             'initial_epsilon': 0.1,
             'final_epsilon': 1e-4,
             'dir': './Models/',
-            'load_checkpoint': False,
-            'saved_checkpoint': False
+            'load_checkpoint': True,
+            'saved_checkpoint': True
         }),
         
         dotdict({
@@ -48,14 +48,14 @@ args = [
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
-            'discount': 0.6,
+            'discount': 0.8,
             'batch_size': 256,
             'num_channels': 64,
             'replay_memory_size': 100000,
             'dropout': 0.4,
             'initial_epsilon': 0.1,
-            'final_epsilon': 1e-4,
-            'dir': './Models/',
+                'final_epsilon': 1e-4,
+                'dir': './Models/',
             'load_checkpoint': False,
             'saved_checkpoint': False
         })
@@ -63,18 +63,14 @@ args = [
 
 def train(): 
     data = Data(cargs.min_size, cargs.max_size)
-    env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
-    print("Infor map: ")
-    print("\tHeight - Width: {}-{}".format(env.height, env.width))
-    print("\tNum agents: {}".format(env.n_agents))
-    print()
+    env = Environment(data.get_random_map(), 
+                      cargs.show_screen, cargs.max_size)
     agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'agent_2')]
     wl_mean, score_mean, l_val_mean =\
         [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(3)]
-    wl, score, l_val = [[deque(maxlen = 100), deque(maxlen = 100)] for _ in range(3)]
+    wl, score, l_val = [[deque(maxlen = 1000), deque(maxlen = 1000)] for _ in range(3)]
     lr_super = [args[0].exp_rate, args[1].exp_rate]
     cnt_w, cnt_l = 0, 0
-    beta = dtanh(env.remaining_turns)
         
     for _ep in range(cargs.n_epochs):
         print('Training_epochs: {}'.format(_ep + 1))
@@ -89,6 +85,7 @@ def train():
                 actions, state_vals, log_probs, rewards, soft_state, \
                     soft_agent_pos, pred_acts = [[[], []] for i in range(7)]
                     
+                
                 """ update by step """
                 for i in range(env.num_players):
                     soft_state[i] = env.get_observation(i)
@@ -151,7 +148,7 @@ def train():
                 l_val_mean[i].append(np.mean(l_val[i]))
             
             env.soft_reset()
-        if _ep % 10 == 0:
+        if _ep % 10 == 9:
             if cargs.visualize:
                 plot(wl_mean[0], False, 'red', y_title = 'num_of_wins')
                 plot(wl_mean[1], True, 'blue',  y_title = 'num_of_wins')
@@ -162,11 +159,12 @@ def train():
                 print("Time: {0: >#.3f}s". format(1000*(end - start)))
             if args[0].saved_checkpoint:
                 agent[0].save_models()
+                # torch.save(agent[0].model.state_dict(), checkpoint_path_1)
             if args[1].saved_checkpoint:
-                agent[1].save_models()
-        # print('Completed episodes')
+                agent[1].save_models()  
+                # torch.save(agent[1].model.state_dict(), checkpoint_path_2)
         # lr_super *= 0.999
-        # env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
+        env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
 
 """
 Created on Fri Nov 27 16:00:47 2020

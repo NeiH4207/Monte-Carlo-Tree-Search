@@ -48,7 +48,7 @@ class Environment(object):
         self.MAX_SIZE = MAX_SIZE
         self.show_screen = show_screen
         self.data = dcopy(input_data)
-        self.n_actions = 9
+        self.n_actions = 8
         self.punish = 0
         self.n_inputs = 7
         self.max_n_agent = 8
@@ -57,6 +57,11 @@ class Environment(object):
         self.players = [Player(i) for i in range(self.num_players)]
         self.screen = Screen(self)
         self.reset()
+        
+        print("Infor map: ")
+        print("\tHeight - Width: {}-{}".format(self.height, self.width))
+        print("\tNum agents: {}".format(self.n_agents))
+        print()
     
     
     def reset(self):
@@ -122,10 +127,12 @@ class Environment(object):
             
         self.upper_bound_score = np.max(score_board)
         self.lower_bound_score = np.min(score_board)
+        self.norm_score_board = dcopy(self.score_board)
+        self.norm_treasure_board = dcopy(self.treasure_board)
         self.range_bound = (self.upper_bound_score - self.lower_bound_score)
-        # self.score_board = (self.score_board - self.lower_bound_score) \
-        #     / self.range_bound
-        # self.treasure_board /= self.range_bound
+        self.score_board = (self.score_board - self.lower_bound_score) \
+            / self.range_bound
+        self.treasure_board /= self.range_bound
         
         self.observation = self.get_observation(0)
             
@@ -221,6 +228,18 @@ class Environment(object):
             state[2][1] = temp
         return state
     
+    def get_opn_observation(self, state):
+        """
+        Returns opponent observation
+        """
+        temp = dcopy(state[1][0])
+        state[1][0] = dcopy(state[1][1])
+        state[1][1] = temp
+        temp = dcopy(state[2][0])
+        state[2][0] = dcopy(state[2][1])
+        state[2][1] = temp
+        return state
+    
     def get_states_for_step(self, states):
         states = np.array(flatten(states), dtype = np.float32)\
             .reshape(-1, self.n_inputs, self.MAX_SIZE, self.MAX_SIZE)
@@ -243,15 +262,14 @@ class Environment(object):
     
     def get_act(act):
         switcher = {
-                (0, 0):   0,
-                (1, 0):   1,
-                (1, 1):   2,
-                (0, 1):   3,
-                (-1, 1):  4,
-                (-1, 0):  5,
-                (-1, -1): 6,
-                (0, -1):  7,
-                (1, -1):  8,
+                (1, 0):   0,
+                (1, 1):   1,
+                (0, 1):   2,
+                (-1, 1):  3,
+                (-1, 0):  4,
+                (-1, -1): 5,
+                (0, -1):  6,
+                (1, -1):  7,
             }
         return switcher.get(act, 0)
     
@@ -366,10 +384,10 @@ class Environment(object):
     def next_action(self, x, y, act):
         def action(x):
             switcher = {
-                0: [0, 0], 1: [1, 0], 2: [1, 1], 3: [0, 1],
-                4: [-1, 1], 5: [-1, 0], 6: [-1, -1], 7: [0, -1], 8: [1, -1]
+                0: [1, 0], 1: [1, 1], 2: [0, 1], 3: [-1, 1], 
+                4: [-1, 0], 5: [-1, -1], 6: [0, -1], 7: [1, -1]
             }
-            return switcher.get(x, [0, 0])
+            return switcher.get(x, [1, 0])
         _action = action(act)
         return [x + _action[0], y + _action[1]]
     
@@ -381,10 +399,10 @@ class Environment(object):
         
         def action(x):
             switcher = {
-                0: [0, 0], 1: [1, 0], 2: [1, 1], 3: [0, 1],
-                4: [-1, 1], 5: [-1, 0], 6: [-1, -1], 7: [0, -1], 8: [1, -1]
+                0: [1, 0], 1: [1, 1], 2: [0, 1], 3: [-1, 1], 
+                4: [-1, 0], 5: [-1, -1], 6: [0, -1], 7: [1, -1]
             }
-            return switcher.get(x, [0, 0])
+            return switcher.get(x, [1, 0])
         
         a1, b1 = action(act)
         a2, b2 = x - x0, y - y0
@@ -530,13 +548,23 @@ class Environment(object):
                     is_valid_action[1][j] = False
                     new_pos[0][i] = dcopy(self.agent_pos[0][i])
                     new_pos[1][j] = dcopy(self.agent_pos[1][j])
+                if i < j and new_pos[0][i][0] == new_pos[0][j][0] and\
+                    new_pos[0][i][1] == new_pos[0][j][1]:
+                    is_valid_action[0][i] = is_valid_action[0][j] = False
+                    new_pos[0][i] = dcopy(self.agent_pos[0][i])
+                    new_pos[0][j] = dcopy(self.agent_pos[0][j])
+                if i < j and new_pos[1][i][0] == new_pos[1][j][0] and\
+                    new_pos[1][i][1] == new_pos[1][j][1]:
+                    is_valid_action[1][i] = is_valid_action[1][j] = False
+                    new_pos[1][i] = dcopy(self.agent_pos[1][i])
+                    new_pos[1][j] = dcopy(self.agent_pos[1][j])
         
         """ handle the clique """
         for i in range(2 * self.n_agents):
-            if j < self.n_agents:
-                if not is_valid_action[0][j]:
+            if i < self.n_agents:
+                if not is_valid_action[0][i]:
                     continue
-            elif not is_valid_action[1][j - self.n_agents]:
+            elif not is_valid_action[1][i - self.n_agents]:
                 continue
             u = i
             stk = [u]
@@ -552,6 +580,7 @@ class Environment(object):
                             if not is_valid_action[0][j]: is_clique = True
                         elif not is_valid_action[1][j - self.n_agents]:
                             is_clique = True
+                            
                         if visited[j]:
                             is_clique = True
                             
@@ -584,24 +613,24 @@ class Environment(object):
             for _ in range(2 * self.n_agents):
                 for j in range(2 * self.n_agents):
                     if connected_matrix[u][j] == 1:
-                        congestion = False
+                        congested = False
                         if j < self.n_agents:
                             x, y = new_pos[0][j]
                             if self.conquer_board[1][x][y] == 1 or\
                                 not is_valid_action[0][j]:
-                                congestion = True
+                                congested = True
                         else:
                             x, y = new_pos[1][j - self.n_agents]
                             if self.conquer_board[0][x][y] == 1 or\
                                 not is_valid_action[1][j - self.n_agents]:
-                                congestion = True
+                                congested = True
                                 
                         if visited[j]:
-                            congestion = True
+                            congested = True
                             
                         visited[j] = True
                         
-                        if not congestion:
+                        if congested:
                             for id in stk:
                                 if id < self.n_agents:
                                     is_valid_action[0][id] = False
@@ -634,8 +663,6 @@ class Environment(object):
                         if render:
                             self.screen.redraw_squares(
                                 self.agent_pos[0][i][0], self.agent_pos[0][i][1], 0)
-                else:
-                    self.agent_board[0][x][y] = self.agent_board[1][x][y] = 0
                                       
             if is_valid_action[1][i]:
                 x, y = new_pos[1][i]
@@ -647,8 +674,6 @@ class Environment(object):
                         if render:
                             self.screen.redraw_squares(
                                 self.agent_pos[1][i][0], self.agent_pos[1][i][1], 1)
-                else:
-                    self.agent_board[0][x][y] = self.agent_board[1][x][y] = 0
                         
         # render after action
         for i in range(self.n_agents):
@@ -663,7 +688,10 @@ class Environment(object):
                     else:
                         self.conquer_board[j][x][y] = 1
                         self.agent_board[j][x][y] = 1
-        
+      
+            self.compute_score(self.observation, self.old_observation)
+            
+        if render: self.render()  
         for i in range(self.n_agents):
             self.agent_pos[0][i] = [new_pos[0][i][0], new_pos[0][i][1]]
             self.agent_pos[1][i] = [new_pos[1][i][0], new_pos[1][i][1]]

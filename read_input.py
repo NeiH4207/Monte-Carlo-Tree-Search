@@ -105,7 +105,10 @@ class Data():
             for _pair in wall_coord:
                 f.write(str(_pair[0]) + ' ' + str(_pair[1]) + '\n')
     
-    def get_random_map(self):
+    def get_random_map(self, turns = random.randint(5, 10), 
+                       n_agents = random.randint(1, 3), 
+                       n_treasures = random.randint(int(1), 3), 
+                       n_walls = random.randint(1, 3)):
         height = random.randint(self.MIN_SIZE, self.MAX_SIZE)
         # width = random.randint(self.MIN_SIZE, self.MAX_SIZE)
         width = height
@@ -127,9 +130,7 @@ class Data():
                 score_matrix[i][j] =  value
                 score_matrix[height- i - 1][width- j - 1] = value
         
-        turns = random.randint(10, 30)
-        
-        n_agents = random.randint(2, 8)
+        # n_agents = random.randint(2, 8)
         # n_agents = 2
         agent_pos = [[], []]
         
@@ -145,10 +146,10 @@ class Data():
             agent_pos[1]. append( [height - _x - 1, width - _y - 1])
         
             
-        num_treasures = random.randint(n_agents, n_agents * 2)
+        # num_treasures = random.randint(n_agents, n_agents * 2)
         # num_treasures = 0
         treasures = []
-        for j in range(num_treasures):
+        for j in range(n_treasures):
             _x, _y = random.randint(0, height- 1), random.randint(0, width- 1)
             while  _x == _y or matrix[_x][_y] > 0: 
                 _x = random.randint(0, height- 1)
@@ -162,12 +163,12 @@ class Data():
             treasures.append([height- _x - 1, width- _y - 1, value])
         
                
-        num_walls = random.randint(int(height * width / 40), int(height * width / 30))
+        # num_walls = random.randint(int(height * width / 40), int(height * width / 30))
         # num_walls = random.randint(2, 2)
         # num_walls = 0
         
         wall_coords = []
-        for j in range(num_walls):
+        for j in range(n_walls):
             _x, _y = random.randint(0, height- 1), random.randint(0, width- 1)
             while  _x == _y or matrix[_x][_y] > 0: 
                 _x = random.randint(0, height- 1)

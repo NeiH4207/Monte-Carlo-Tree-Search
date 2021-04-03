@@ -13,18 +13,45 @@ import numpy as np
 from src.mcts import MCTS
 from collections import deque
 import time
-from src.utils import plot
 from src.model import Policy
 from src.replay_memory import ReplayMemory
 from src.trainer import Trainer
+from src.utils import plot, dotdict
 
+args = dotdict({
+    'run_mode': 'train',
+    'visualize': True,
+    'min_size': 7,
+    'max_size': 7,
+    'n_games': 2,
+    'num_iters': 20000,
+    'n_epochs': 1000000,
+    'n_maps': 1000,
+    'show_screen': True,
+    'optimizer': 'adas',
+    'lr': 1e-4,
+    'exp_rate': 0.0,
+    'gamma': 0.99,
+    'tau': 0.01,
+    'max_grad_norm': 0.3,
+    'discount': 0.6,
+    'num_channels': 64,
+    'batch_size': 256,
+    'replay_memory_size': 100000,
+    'dropout': 0.6,
+    'initial_epsilon': 0.1,
+    'final_epsilon': 1e-4,
+    'dir': './Models/',
+    'load_checkpoint': False,
+    'saved_checkpoint': False
+})
 
-def execute_episode(agent_netw, num_simulations, env, args):
+def execute_episode(netw, num_simulations, env, args):
     """
     Executes a single episode of the task using Monte-Carlo tree search with
     the given agent network. It returns the experience tuples collected during
     the search.
-    :param agent_netw: Network for predicting action probabilities and state
+    :param netw: Network for predicting action probabilities and state
     value estimate.
     :param num_simulations: Number of simulations (traverses from root to leaf)
     per action.
@@ -34,7 +61,7 @@ def execute_episode(agent_netw, num_simulations, env, args):
     rewards in each step, total return for this episode and the final state of
     this episode.
     """
-    mcts = MCTS(agent_netw, env)
+    mcts = MCTS(netw, env)
     mcts.initialize_search()
 
     """
@@ -43,42 +70,52 @@ def execute_episode(agent_netw, num_simulations, env, args):
     """
     
     first_node = mcts.root.select_leaf()
-    probs, vals = agent_netw.step(env.get_states_for_step(first_node.state),
+    probs, vals = netw.step(env.get_states_for_step(first_node.state),
                                   env.get_agent_for_step(0))
     first_node.incorporate_estimates(probs[0], vals[0], first_node)
     
-    while True:
-        actions_1 = [0] * env.n_agents
-        actions_2 = [0] * env.n_agents
+    """ initialize """
+    actions, state_vals, log_probs, rewards, soft_state, \
+        soft_agent_pos, pred_acts = [[[], []] for i in range(7)]
         
-        for i in range(env.n_agents):
-            if args.show_screen:
-                env.render()
-            mcts.root.inject_noise()
-            current_simulations = mcts.root.N
-    
-            # We want `num_simulations` simulations per action not counting
-            # simulations from previous actions.
-            while mcts.root.N < current_simulations + num_simulations:
-                mcts.tree_search()
-            action = mcts.pick_action()
-            mcts.take_action(action)
-            actions_1[i] = action
+    """ update by step """
+    for i in range(env.num_players):
+        soft_state[i] = env.get_observation(i)
+        soft_agent_pos[i] = env.get_agent_pos(i)
+        
+    while True:
+        actions = [[0] * env.n_agents, [0] * env.n_agents]
+        for agent_id in range(env.n_agents):
+            for player in range(env.num_players):
+                mcts.root.inject_noise()
+                current_simulations = mcts.root.N
+        
+                # We want `num_simulations` simulations per action not counting
+                # simulations from previous actions.
+                while mcts.root.N < current_simulations + num_simulations:
+                    mcts.tree_search()
+                act = mcts.pick_action()
+                valid, next_state, reward = env.soft_step(agent_id, soft_state[i], act, soft_agent_pos[i])
+                mcts.take_action(action)
+                actions[player][agent_id] = action
             
-        for i in range(env.n_agents):
-            if args.show_screen:
-                env.render()
-            mcts.root.inject_noise()
-            current_simulations = mcts.root.N
-            while mcts.root.N < current_simulations + num_simulations:
-                mcts.tree_search()
+        # for i in range(env.n_agents):
+        #     if args.show_screen:
+        #         env.render()
+        #     mcts.root.inject_noise()
+        #     current_simulations = mcts.root.N
+        #     while mcts.root.N < current_simulations + num_simulations:
+        #         mcts.tree_search()
     
-            action = mcts.pick_action()
-            mcts.take_action(action)
-            actions_2[i] = action
-        # print(actions_1, actions_2)
-        next_state, final_reward, done, _ = env.step(actions_1, actions_2, args.show_screen)
-        mcts.root.state = env.get_state(0)
+        #     action = mcts.pick_action()
+        #     mcts.take_action(action)
+        #     actions_2[i] = action
+        actions[0] = [np.random.randint(0, env.n_actions - 1) for _ in range(env.n_agents)]
+        actions[1] = [np.random.randint(0, env.n_actions - 1) for _ in range(env.n_agents)]
+        next_state, final_reward, done, _ = env.step(actions[0], actions[1], args.show_screen)
+        if args.show_screen:
+            env.render()
+        # mcts.root.state = env.get_state(0)
         if mcts.root.is_done():
             break
     
@@ -87,10 +124,9 @@ def execute_episode(agent_netw, num_simulations, env, args):
     obs = np.concatenate(mcts.obs)
     return (obs, mcts.searches_pi,  mcts.rewards)
 
-def train(args): 
+def train(): 
     data = Data(args.min_size, args.max_size)
-    rand_map = data.get_random_map()
-    env = Environment(rand_map, args.show_screen, args.max_size)
+    env = Environment(data.get_random_map(), args.show_screen, args.max_size)
     model = Policy(env, args)
     if args.load_checkpoint:
         model.load_checkpoint(name = args.model_name)
@@ -129,7 +165,7 @@ def train(args):
         env.punish = 0
         # env = Environment(data.get_random_map(), args.show_screen, args.max_size)
 
-def test(args):
+def test():
     data = Data(args.min_size, args.max_size)
     rand_map = data.get_random_map()
     env = Environment(rand_map, args.show_screen, args.max_size)
@@ -201,45 +237,8 @@ def test(args):
         env.reset()
         env = Environment(data.get_random_map(), args.show_screen, args.max_size)
 
-def get_args():
-    parser = argparse.ArgumentParser("""Implementation of Deep Q Network to play Procon""")
-    parser.add_argument("--file_name", default = "input.txt")
-    parser.add_argument("--run", type=str, default="train")   
-    parser.add_argument("--min_size", type=int, default= 10)   
-    parser.add_argument("--max_size", type=int, default= 10)   
-    parser.add_argument("--batch_size", type=int, default=256, help="The number of state per batch")
-    parser.add_argument("--optimizer", type=str, choices=["sgd", "adam"], default="adam")
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--lr_super", type=float, default=0.0)
-    parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--tau", type=float, default=0.01)
-    parser.add_argument("--max_grad_norm", type=float, default=0.3)
-    parser.add_argument("--discount", type=float, default=0.999)   
-    parser.add_argument("--num_channels", type=int, default=64)   
-    parser.add_argument("--dropout", type=float, default=0.3)   
-    parser.add_argument("--initial_epsilon", type=float, default=0.1)
-    parser.add_argument("--final_epsilon", type=float, default=1e-4)
-    parser.add_argument("--num_iters", type=int, default=20000)
-    parser.add_argument("--replay_memory_size", type=int, default=100000,
-                        help="Number of epoches between testing phases")
-    parser.add_argument("--n_games", type=int, default=5)
-    parser.add_argument("--n_maps", type=int, default=1000)
-    parser.add_argument("--n_epochs", type=int, default=1000000)
-    parser.add_argument("--log_path", type=str, default="tensorboard")
-    parser.add_argument("--saved_path", type=str, default="trained_models")
-    parser.add_argument("--test_model", type=bool, default=False)
-    parser.add_argument("--dir", type=str, default='./Models/')
-    parser.add_argument("--model_name", type=str, default='model')
-    parser.add_argument("--show_screen", type=str, default=False)
-    parser.add_argument("--load_checkpoint", type=str, default=False)
-    parser.add_argument("--saved_checkpoint", type=str, default=True)   
-    
-    args, unknown = parser.parse_known_args()
-    return args
-
 if __name__ == "__main__":
-    args = get_args()
-    if args.run == "train":
-        train(args)
-    if args.run == "test":
-        test(args)
+    if args.run_mode == "train":
+        train()
+    if args.run_mode == "test":
+        test()
