@@ -177,11 +177,11 @@ class Agent():
             agent_id = order[i]
             
             act = 0
-            scores = [0] * 9
+            scores = [0] * 8
             mn = 1000
             mx = -1000
             valid_states = []
-            for act in range(9):
+            for act in range(8):
                 _state, _agent_pos = dcopy([state, agent_pos])
                 valid, next_state, reward = env.soft_step(agent_id, _state, act, _agent_pos, predict=True)
                 scores[act] = reward - init_score
@@ -223,11 +223,11 @@ class Agent():
             _state = flatten(_state)
             states.append(state)
             act = 0
-            scores = [0] * 9
+            scores = [0] * 8
             mn = 1000
             mx = -1000
             valid_states = []
-            for act in range(9):
+            for act in range(8):
                 _state, _agent_pos_1, _agent_pos_2 = dcopy([state, agent_pos_1, agent_pos_2])
                 valid, _state, _agent_pos, _score = self.env.fit_action(i, _state, act, _agent_pos_1, _agent_pos_2, False)
                 scores[act] = _score - init_score
@@ -242,7 +242,7 @@ class Agent():
                 scores[j] = scores[j] / sum
                 if valid_states[j] is False:
                     scores[j] = 0
-            act = choices(range(9), scores)[0]
+            act = choices(range(self.env.n_actions), scores)[0]
             valid, state, agent_pos, score = self.env.fit_action(i, state, act, agent_pos_1, agent_pos_2)
             init_score = score
             actions.append(act)
@@ -253,7 +253,7 @@ class Agent():
     def select_random(self, state):
         actions = []
         for i in range(self.num_agents):
-            actions.append(randint(0, 8))
+            actions.append(randint(0, 7))
         return state, actions, [0] * self.num_agents, state 
     
     def save_models(self):
