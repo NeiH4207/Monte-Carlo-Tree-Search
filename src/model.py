@@ -47,10 +47,10 @@ class Policy(nn.Module):
         self.fc4 = nn.Linear(512, 1).to(self.device)
         
         self.entropies = 0
-        self.action_probs = []
-        self.state_values = []
-        self.rewards = []
-        self.next_states = []
+        self.action_probs = [[], []]
+        self.state_values = [[], []]
+        self.rewards = [[], []]
+        self.next_states = [[], []]
         if args.optimizer == 'adas':
             self.optimizer = Adas(self.parameters(), lr=self.lr)
         elif args.optimizer == 'adam':
@@ -88,20 +88,20 @@ class Policy(nn.Module):
 
         return pi.detach().to('cpu').numpy(), v.detach().to('cpu').numpy()
 
-    def store(self, prob, state_value, reward):
-        self.action_probs.append(prob)
-        self.state_values.append(state_value)
-        self.rewards.append(reward)
+    def store(self, player_ID, prob, state_value, reward):
+        self.action_probs[player_ID].append(prob)
+        self.state_values[player_ID].append(state_value)
+        self.rewards[player_ID].append(reward)
     
     def clear(self):
-        self.action_probs = []
-        self.state_values = []
-        self.rewards = []
-        self.next_states = []
+        self.action_probs = [[], []]
+        self.state_values = [[], []]
+        self.rewards = [[], []]
+        self.next_states = [[], []]
         self.entropies = 0
     
     def get_data(self):
-        return self.action_probs, self.state_values, self.rewards, self.next_states
+        return self.action_probs, self.state_values, self.rewards
         
     def optimize(self):
         self.optimizer.step()

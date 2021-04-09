@@ -16,7 +16,7 @@ cargs = dotdict({
     'visualize': True,
     'min_size': 10,
     'max_size': 20,
-    'n_games': 3,
+    'n_games': 1,
     'num_iters': 20000,
     'n_epochs': 1000000,
     'n_maps': 1000,
@@ -40,7 +40,7 @@ args = [
             'final_epsilon': 1e-4,
             'dir': './Models/',
             'load_checkpoint': False,
-            'saved_checkpoint': True
+            'saved_checkpoint': False
         }),
         
         dotdict({
@@ -59,18 +59,23 @@ args = [
             'final_epsilon': 0.01,
             'dir': './Models/',
             'load_checkpoint': False,
-            'saved_checkpoint': True
+            'saved_checkpoint': False
         })
 ]
 
 def train(): 
     data = Data(cargs.min_size, cargs.max_size)
     env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
-    agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'agent_2')]
+    bot = Agent(env, args[0], 'bot')
     
-    wl_mean, score_mean, l_val_mean =\
-        [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(3)]
-    wl, score, l_val = [[deque(maxlen = 1000), deque(maxlen = 1000)] for _ in range(3)]
+    wl_mean, score_mean, l_val_mean, l_pi_mean =\
+        [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(4)]
+    wl_mean.append(0)
+    score_mean.append(0)
+    l_val_mean.append(0)
+    l_pi_mean.append(0)
+    wl, score, l_val, l_pi = [[deque(maxlen = 1000), deque(maxlen = 1000)] 
+                                for _ in range(4)]
     cnt_w, cnt_l = 0, 0
     temp_reward = [0] * 2
     # agent[0].model.load_state_dict(torch.load(checkpoint_path_1, map_location = agent[0].model.device))
@@ -100,7 +105,7 @@ def train():
                     for i in range(env.num_players):
                         state_step = env.get_states_for_step(current_state)
                         agent_step = env.get_agent_for_step(agent_id, soft_agent_pos)
-                        act, log_p, state_val = agent[i].select_action(state_step, agent_step)
+                        act, log_p, state_val = bot.select_action(state_step, agent_step)
                                 
                         valid, current_state, reward = env.soft_step(agent_id, current_state, act, soft_agent_pos[0])
                         current_state, soft_agent_pos = env.get_opn_observation(current_state, soft_agent_pos)
@@ -115,7 +120,7 @@ def train():
                 current_state, final_reward, done, _ = env.step(actions[0], actions[1], cargs.show_screen)
                 for i in range(env.n_agents):
                     for j in range(env.num_players):
-                        agent[j].model.store(log_probs[j][i], state_vals[j][i], rewards[j][i])
+                        bot.model.store(j, log_probs[j][i], state_vals[j][i], rewards[j][i])
                         
             # store the win lose battle
             in_win = env.players[0].total_score > env.players[1].total_score
@@ -124,18 +129,18 @@ def train():
                 
             score[0].append(env.players[0].total_score)
             score[1].append(env.players[1].total_score)
-            agent[0].learn()
-            agent[1].learn()
+            bot.learn()
             end = time.time()
             if _ep > 3:
-                l_val[0].append(agent[0].value_loss)
-                l_val[1].append(agent[1].value_loss)
+                l_val[0].append(bot.value_loss)
+                l_pi[0].append(bot.policy_loss)
                 wl[0].append(cnt_w)
                 wl[1].append(cnt_l)
                 for i in range(2):
                     wl_mean[i].append(np.mean(wl[i]))
                     score_mean[i].append(np.mean(score[i]))
                     l_val_mean[i].append(np.mean(l_val[i]))
+                    l_pi_mean[i].append(np.mean(l_pi[i]))
             
             env.soft_reset()
         if _ep % 50 == 49:
@@ -143,16 +148,16 @@ def train():
                 plot(wl_mean, vtype = 'Win')
                 plot(score_mean, vtype = 'Score')
                 plot(l_val_mean, vtype = 'Loss_Value')
+                plot(l_pi_mean, vtype = 'Loss_Policy')
                 print("Time: {0: >#.3f}s". format(1000*(end - start)))
             if args[0].saved_checkpoint:
-                agent[0].save_models()
+                bot.save_models() 
                 # torch.save(agent[0].model.state_dict(), checkpoint_path_1)
-            if args[1].saved_checkpoint:
-                agent[1].save_models()
+            # if args[1].saved_checkpoint:
+            #     agent[1].save_models()
                 # torch.save(agent[1].model.state_dict(), checkpoint_path_2)
                 # print('Completed episodes')
-        # lr_super *= 0.999
-        env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
+        # env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
         
 if __name__ == "__main__":
      train()

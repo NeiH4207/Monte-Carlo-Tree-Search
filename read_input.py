@@ -112,6 +112,8 @@ class Data():
         turns = random.randint(15, 30)
         n_agents = random.randint(2, 8)
         n_treasures = random.randint(n_agents, n_agents * 2)
+        # n_treasures = 0
+        # n_walls =  0
         n_walls =  random.randint(int(height * width / 40), int(height * width / 30))
         score_matrix = []
         conquer_matrix = [[], []]

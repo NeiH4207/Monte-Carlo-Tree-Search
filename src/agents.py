@@ -60,7 +60,7 @@ class Agent():
         :return:
         """
         
-        log_probs, y_pred, rewards, next_states = self.model.get_data()
+        log_probs, y_pred, rewards = self.model.get_data()
         
         ''' ---------------------- optimize ----------------------
         Use target actor exploitation policy here for loss evaluation
@@ -69,16 +69,23 @@ class Agent():
         '''
         # print(rewards)
         # gae = torch.zeros(1, 1).to
-        for i in reversed(range(len(rewards) - 1)):
+        for i in reversed(range(len(rewards[0]) - 1)):
             # rewards[i] = rewards[i] * self.args.discount + (1 - self.args.discount) * rewards[i + 1]
-            r = rewards[i + 1]
-            rewards[i] = rewards[i] + self.args.gamma * r
+            rewards[0][i] = rewards[0][i] + self.args.gamma * rewards[0][i + 1]
+            rewards[1][i] = rewards[1][i] + self.args.gamma * rewards[1][i + 1]
             # gae = gae * self.args.gamma + rewards[i] - y_pred[i] + \
             #     (y_pred[i + 1] if i < len(rewards) - 1 else 0)
         # print(rewards)
-        y_exp = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
-        y_pred = torch.stack(y_pred).unsqueeze(1).to(self.device)
-        log_probs = torch.stack(log_probs).unsqueeze(1).to(self.device)
+        
+        y_exp = torch.cat((torch.FloatTensor(rewards[0]).unsqueeze(1).to(self.device),
+                          torch.FloatTensor(rewards[1]).unsqueeze(1).to(self.device)),
+                          dim = 1).view(-1)
+        y_pred = torch.cat((torch.stack(y_pred[0]).unsqueeze(1).to(self.device),
+                          torch.stack(y_pred[1]).unsqueeze(1).to(self.device)),
+                          dim = 1).view(-1)
+        log_probs = torch.cat((torch.stack(log_probs[0]).unsqueeze(1).to(self.device),
+                          torch.stack(log_probs[1]).unsqueeze(1).to(self.device)),
+                          dim = 1).view(-1)
         advantage = y_exp - y_pred
         policy_loss = (-log_probs * advantage.detach()).mean()
         value_loss = advantage.pow(2).mean()
@@ -148,7 +155,7 @@ class Agent():
         prob = Categorical(prob)
         act = prob.sample()
         if random() < self.random_rate:
-            act = torch.tensor(randint(0, self.n_actions - 1)).to(self.device)
+            act = torch.tensor([randint(0, self.n_actions - 1)]).to(self.device)
             self.random_rate *= 0.9999
             self.random_rate = max(self.random_rate, self.args.final_epsilon)
         log_p = prob.log_prob(act)

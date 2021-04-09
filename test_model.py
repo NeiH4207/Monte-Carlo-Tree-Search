@@ -19,10 +19,14 @@ import torch
 from src.utils import plot, dotdict
 
 cargs = dotdict({
+    'run_mode': 'test',
     'visualize': True,
-    'min_size': 7,
-    'max_size': 7,
-    'n_epochs': 100,
+    'min_size': 8,
+    'max_size': 8,
+    'n_games': 3,
+    'num_iters': 20000,
+    'n_epochs': 1000000,
+    'n_maps': 1000,
     'show_screen': True,
 })
 
@@ -30,7 +34,7 @@ args = [
         dotdict({
             'optimizer': 'adas',
             'lr': 1e-4,
-            'exp_rate': 0.0,
+            'exp_rate': 0.7,
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
@@ -39,10 +43,10 @@ args = [
             'batch_size': 256,
             'replay_memory_size': 100000,
             'dropout': 0.6,
-            'initial_epsilon': 0.1,
+            'initial_epsilon': 0.0,
             'final_epsilon': 1e-4,
             'dir': './Models/',
-            'load_checkpoint': True,
+            'load_checkpoint': False,
             'saved_checkpoint': True
         }),
         
@@ -58,7 +62,7 @@ args = [
             'num_channels': 64,
             'replay_memory_size': 100000,
             'dropout': 0.4,
-            'initial_epsilon': 0.1,
+            'initial_epsilon': 0.0,
             'final_epsilon': 0.01,
             'dir': './Models/',
             'load_checkpoint': True,
@@ -69,10 +73,11 @@ args = [
 def test(): 
     data = Data(cargs.min_size, cargs.max_size)
     env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
-    agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'agent_2')]
+    agent = [Agent(env, args[0], 'agent_2'), Agent(env, args[1], 'bot')]
     wl_mean, score_mean = [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(2)]
     wl, score = [[deque(maxlen = 1000), deque(maxlen = 1000)] for _ in range(2)]
     cnt_w, cnt_l = 0, 0
+    exp_rate = [args[0].exp_rate, args[1].exp_rate]
     # agent[0].model.load_state_dict(torch.load(checkpoint_path_1, map_location = agent[0].model.device))
     # agent[1].model.load_state_dict(torch.load(checkpoint_path_2, map_location = agent[1].model.device))
         
@@ -82,23 +87,31 @@ def test():
         done = False
         start = time.time()
         current_state = env.get_observation(0)
-        for _iter in count():
+        for _iter in range(env.n_turns):
             if cargs.show_screen:
                 env.render()
                 
             """ initialize """
-            actions, soft_state, soft_agent_pos = [[[], []] for i in range(3)]
+            actions, soft_state, soft_agent_pos, pred_acts, exp_rewards = \
+                [[[], []] for i in range(5)]
                 
             """ update by step """
             for i in range(env.num_players):
+                soft_state[i] = env.get_observation(i)
                 soft_agent_pos[i] = env.get_agent_pos(i)
-                
+                pred_acts[i], exp_rewards[i] = agent[i].select_action_smart(soft_state[i], soft_agent_pos[i], env)
+
             """ select action for each agent """
             for agent_id in range(env.n_agents):
                 for i in range(env.num_players):
                     state_step = env.get_states_for_step(current_state)
                     agent_step = env.get_agent_for_step(agent_id, soft_agent_pos)
-                    act, log_p, state_val = agent[i].select_action(state_step, agent_step)
+                    act, log_p, state_val = 0, 0, 0
+                    if random.random() < exp_rate[i]:
+                        act, log_p, state_val = agent[i].select_action_by_exp(
+                            state_step, agent_step, pred_acts[i][agent_id])
+                    else:
+                        act, log_p, state_val = agent[i].select_action(state_step, agent_step)
                             
                     valid, current_state, reward = env.soft_step(agent_id, current_state, act, soft_agent_pos[0])
                     current_state, soft_agent_pos = env.get_opn_observation(current_state, soft_agent_pos)
@@ -129,7 +142,8 @@ def test():
             plot(wl_mean, vtype = 'Win')
             plot(score_mean, vtype = 'Score')
             print("Time: {0: >#.3f}s". format(1000*(end - start)))
-        env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
+        env.soft_reset()
+        # env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
 
 if __name__ == "__main__":
     test()
