@@ -105,13 +105,14 @@ class Data():
             for _pair in wall_coord:
                 f.write(str(_pair[0]) + ' ' + str(_pair[1]) + '\n')
     
-    def get_random_map(self, turns = random.randint(5, 10), 
-                       n_agents = random.randint(2, 2), 
-                       n_treasures = random.randint(int(1), 3), 
-                       n_walls = random.randint(1, 3)):
+    def get_random_map(self):
         height = random.randint(self.MIN_SIZE, self.MAX_SIZE)
         # width = random.randint(self.MIN_SIZE, self.MAX_SIZE)
         width = height
+        turns = random.randint(15, 30)
+        n_agents = random.randint(2, 8)
+        n_treasures = random.randint(n_agents, n_agents * 2)
+        n_walls =  random.randint(int(height * width / 40), int(height * width / 30))
         score_matrix = []
         conquer_matrix = [[], []]
         mx = random.randint(3, 30)
@@ -129,9 +130,7 @@ class Data():
                     value = -value
                 score_matrix[i][j] =  value
                 score_matrix[height- i - 1][width- j - 1] = value
-        
-        # n_agents = random.randint(2, 8)
-        # n_agents = 2
+                
         agent_pos = [[], []]
         
         
@@ -146,7 +145,6 @@ class Data():
             agent_pos[1]. append( [height - _x - 1, width - _y - 1])
         
             
-        # num_treasures = random.randint(n_agents, n_agents * 2)
         # num_treasures = 0
         treasures = []
         for j in range(n_treasures):

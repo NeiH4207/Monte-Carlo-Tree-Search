@@ -33,16 +33,19 @@ def vizualize(arr, name, cl = 'red'):
     plt.savefig(name,bbox_inches='tight')
     plt.show()
     
-def plot(values, export = True, cl = 'red', x_title = 'iteration', y_title = 'Scores'):
-    ax = plt.figure(num=1, figsize=(5, 3), dpi=100).gca()
+def plot(values, vtype = 'Scores'):
+    fig, ax = plt.subplots(figsize=(7, 4))
     ax.grid()
-    plt.xlabel("Iteration")
     ax.set_xlabel('Episode')
-    ax.set_ylabel(y_title)
-    ax.plot(values, color = cl, linewidth = 1.25)
-    if export:
-        plt.savefig('./Experiments/' + y_title + '.pdf',bbox_inches='tight')
-        plt.show()
+    ax.set_ylabel(vtype)
+    ax.plot(values[0], color='red', label='Bot 1')
+    ax.plot(values[1], color='blue', label='Bot 2')
+    ax.set_xlabel('Episode', fontsize=16)
+    ax.set_ylabel(vtype, fontsize=16)
+
+    plt.savefig('./Experiments/' + vtype + '.pdf',bbox_inches='tight')
+    plt.show()
+
 
 
 def flatten(data):

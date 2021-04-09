@@ -51,18 +51,21 @@ class Environment(object):
         self.n_actions = 8
         self.punish = 0
         self.n_inputs = 7
-        self.max_n_agent = 8
+        self.max_n_agents = 8
+        self.max_n_turns = 100
         self.num_players = 2
+        self.agent_step_dim = (1 + 2 * self.max_n_agents) * (self.MAX_SIZE ** 2) + self.max_n_turns
         self.action_dim = self.n_actions
         self.players = [Player(i) for i in range(self.num_players)]
         self.screen = Screen(self)
         self.reset()
         
+        '''
         print("Infor map: ")
         print("\tHeight - Width: {}-{}".format(self.height, self.width))
         print("\tNum agents: {}".format(self.n_agents))
         print()
-    
+        '''
     
     def reset(self):
         """
@@ -228,7 +231,7 @@ class Environment(object):
             state[2][1] = temp
         return state
     
-    def get_opn_observation(self, state):
+    def get_opn_observation(self, state, agent_pos):
         """
         Returns opponent observation
         """
@@ -238,7 +241,22 @@ class Environment(object):
         temp = dcopy(state[2][0])
         state[2][0] = dcopy(state[2][1])
         state[2][1] = temp
-        return state
+        
+        temp = dcopy(agent_pos[1])
+        agent_pos[1] = dcopy(agent_pos[0])
+        agent_pos[0] = temp
+        return state, agent_pos
+    
+    def log_state(self, state):
+        print("Score Board: ")
+        for i in range(self.height):
+            print(self.norm_score_board[i][:self.width])
+        print("Agent Board 1: ")
+        for i in range(self.height):
+            print(state[AgentID][0][i][:self.width])
+        print("Agent Board 2: ")
+        for i in range(self.height):
+            print(state[AgentID][1][i][:self.width])
     
     def get_states_for_step(self, states):
         states = np.array(flatten(states), dtype = np.float32)\
@@ -248,16 +266,32 @@ class Environment(object):
     def get_agent_pos(self, player):
         return dcopy(self.agent_pos[player])
     
-    def get_agent_for_step(self, agent_id):
-        agent_pos = np.zeros([self.max_n_agent + 1], dtype=np.float32)
-        agent_pos[agent_id] = 1
-        agent_pos[-1] = self.remaining_turns
-        return np.array([agent_pos])
+    def get_agent_for_step(self, agent_ID, agent_coord):
+        agent_state = [[], []]
+        for ag_id in range(self.max_n_agents):
+            for player_ID in range(self.num_players):
+                empty_board = []
+                for _ in range(self.MAX_SIZE):
+                    empty_board.append([0] * self.MAX_SIZE)
+                agent_state[player_ID].append(empty_board)
+                if ag_id >= self.n_agents: continue
+                x, y = agent_coord[player_ID][ag_id]
+                agent_state[player_ID][ag_id][x][y] = 1
+                # for i in range(self.height):
+                #     print(agent_state[player_ID][ag_id][i][:self.width])
+                # print()
+                    
+        index = agent_state[0][agent_ID]
+        onehot_nturns = [0] * self.max_n_turns
+        onehot_nturns[self.remaining_turns] = 1
+        agent_state = flatten([agent_state, index, onehot_nturns])
+        # print(len(agent_state))
+        return np.array(agent_state, dtype = np.float32).reshape(-1, self.agent_step_dim)
     
     def get_agents_for_step(self, agents_ID):
         agents_step = [self.get_agent_for_step(agent_ID) for agent_ID in agents_ID]
         agents_step = np.array(agents_step, dtype = np.float32)\
-            .reshape(-1, self.max_n_agent + 1)
+            .reshape(-1, )
         return agents_step
     
     def get_act(act):
@@ -458,14 +492,13 @@ class Environment(object):
             discount *= 0.7
         return score
     
-    def soft_step(self, agent_id, state, act, agent_pos, predict = False):
+    def soft_step(self, agent_id, state, act, agent_pos, exp = False):
         old_state = dcopy(state)
         old_scores, old_treasures_scores, area_scores = self.compute_score(old_state, old_state)
         old_score = old_scores[0] + area_scores[0] - old_scores[1] - area_scores[1]
         score_board, agent_board, conquer_board, treasure_board, wall_board = state
         x, y = agent_pos[agent_id][0], agent_pos[agent_id][1]     
-        new_pos = self.next_action(x, y, act)
-        _x, _y = new_pos
+        _x, _y = self.next_action(x, y, act)
         valid = True
         aux_score = 0
         reward = 0
@@ -484,7 +517,7 @@ class Environment(object):
             
         title_scores, treasures_scores, area_scores = self.compute_score(state, old_state)
         if valid:
-            if predict:
+            if exp:
                 aux_score = self.predict_spread_scores(_x, _y, state, act)
             else:
                 aux_score = 0
@@ -498,8 +531,7 @@ class Environment(object):
     def soft_step_(self, agent_id, state, act, agent_pos):
         score_board, agent_board, conquer_board, treasure_board, wall_board = state
         x, y = agent_pos[agent_id][0], agent_pos[agent_id][1]     
-        new_pos = self.next_action(x, y, act)
-        _x, _y = new_pos
+        _x, _y = self.next_action(x, y, act)
         if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and wall_board[_x][_y] == 0:
             if agent_board[0][_x][_y] == 0 and agent_board[1][_x][_y] == 0:
                 if conquer_board[1][_x][_y] == 0:

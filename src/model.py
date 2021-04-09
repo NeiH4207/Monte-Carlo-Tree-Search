@@ -36,7 +36,7 @@ class Policy(nn.Module):
         self.bn3 = nn.BatchNorm2d(args.num_channels).to(self.device)
         self.bn4 = nn.BatchNorm2d(args.num_channels).to(self.device)
         self.fc1 = nn.Linear(args.num_channels*(self.board_x - 4)*(self.board_y - 4) \
-                             + env.max_n_agent + 1, 1024).to(self.device)
+                             + env.agent_step_dim, 1024).to(self.device)
         self.fc_bn1 = nn.BatchNorm1d(1024).to(self.device)
 
         self.fc2 = nn.Linear(1024, 512).to(self.device)

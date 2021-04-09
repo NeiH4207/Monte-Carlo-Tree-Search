@@ -70,9 +70,9 @@ class Agent():
         # print(rewards)
         # gae = torch.zeros(1, 1).to
         for i in reversed(range(len(rewards) - 1)):
-            rewards[i] = rewards[i] * self.args.discount + (1 - self.args.discount) * rewards[i + 1]
-            # r = rewards[i + 1]
-            # rewards[i] = rewards[i] + self.args.gamma * r
+            # rewards[i] = rewards[i] * self.args.discount + (1 - self.args.discount) * rewards[i + 1]
+            r = rewards[i + 1]
+            rewards[i] = rewards[i] + self.args.gamma * r
             # gae = gae * self.args.gamma + rewards[i] - y_pred[i] + \
             #     (y_pred[i + 1] if i < len(rewards) - 1 else 0)
         # print(rewards)
@@ -186,7 +186,7 @@ class Agent():
             valid_states = []
             for act in range(env.n_actions):
                 _state, _agent_pos = dcopy([state, agent_pos])
-                valid, next_state, reward = env.soft_step(agent_id, _state, act, _agent_pos, predict=True)
+                valid, next_state, reward = env.soft_step(agent_id, _state, act, _agent_pos, exp=True)
                 scores[act] = reward - init_score
                 mn = min(mn, reward - init_score)
                 mx = max(mx, reward - init_score)
@@ -203,7 +203,7 @@ class Agent():
             #     if valid_states[j] is False:
             #         scores[j] = 0
             act = np.array(scores).argmax()
-            valid, state, score = env.soft_step(agent_id, state, act, agent_pos, predict=True)
+            valid, state, score = env.soft_step(agent_id, state, act, agent_pos, exp=True)
             init_score = score
             actions[agent_id] = act
             exp_rewards[agent_id] = mx
