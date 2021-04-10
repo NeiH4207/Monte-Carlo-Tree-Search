@@ -21,9 +21,9 @@ from src.utils import plot, dotdict
 cargs = dotdict({
     'run_mode': 'test',
     'visualize': True,
-    'min_size': 8,
-    'max_size': 8,
-    'n_games': 3,
+    'min_size': 9,
+    'max_size': 11,
+    'n_games': 1,
     'num_iters': 20000,
     'n_epochs': 1000000,
     'n_maps': 1000,
@@ -34,7 +34,7 @@ args = [
         dotdict({
             'optimizer': 'adas',
             'lr': 1e-4,
-            'exp_rate': 0.7,
+            'exp_rate': 0.0,
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
@@ -73,7 +73,7 @@ args = [
 def test(): 
     data = Data(cargs.min_size, cargs.max_size)
     env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
-    agent = [Agent(env, args[0], 'agent_2'), Agent(env, args[1], 'bot')]
+    agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'bot')]
     wl_mean, score_mean = [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(2)]
     wl, score = [[deque(maxlen = 1000), deque(maxlen = 1000)] for _ in range(2)]
     cnt_w, cnt_l = 0, 0

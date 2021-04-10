@@ -11,62 +11,38 @@ import time
 import torch
 from src.utils import plot, dotdict
 
-cargs = dotdict({
+args = dotdict({
     'run_mode': 'train',
     'visualize': True,
-    'min_size': 10,
-    'max_size': 20,
+    'min_size': 9,
+    'max_size': 11,
     'n_games': 1,
     'num_iters': 20000,
     'n_epochs': 1000000,
     'n_maps': 1000,
+    'optimizer': 'adas',
+    'lr': 1e-4,
+    'exp_rate': 0.0,
+    'gamma': 0.99,
+    'tau': 0.01,
+    'max_grad_norm': 0.3,
+    'discount': 0.6,
+    'num_channels': 64,
+    'batch_size': 256,
+    'replay_memory_size': 100000,
+    'dropout': 0.6,
+    'initial_epsilon': 0.1,
+    'final_epsilon': 1e-4,
+    'dir': './Models/',
     'show_screen': True,
+    'load_checkpoint': True,
+    'saved_checkpoint': True
 })
 
-args = [
-        dotdict({
-            'optimizer': 'adas',
-            'lr': 1e-4,
-            'exp_rate': 0.0,
-            'gamma': 0.99,
-            'tau': 0.01,
-            'max_grad_norm': 0.3,
-            'discount': 0.6,
-            'num_channels': 64,
-            'batch_size': 256,
-            'replay_memory_size': 100000,
-            'dropout': 0.6,
-            'initial_epsilon': 0.1,
-            'final_epsilon': 1e-4,
-            'dir': './Models/',
-            'load_checkpoint': False,
-            'saved_checkpoint': False
-        }),
-        
-        dotdict({
-            'optimizer': 'adas',
-            'lr': 1e-4,
-            'exp_rate': 0.0,
-            'gamma': 0.99,
-            'tau': 0.01,
-            'max_grad_norm': 0.3,
-            'discount': 0.6,
-            'batch_size': 256,
-            'num_channels': 64,
-            'replay_memory_size': 100000,
-            'dropout': 0.4,
-            'initial_epsilon': 0.1,
-            'final_epsilon': 0.01,
-            'dir': './Models/',
-            'load_checkpoint': False,
-            'saved_checkpoint': False
-        })
-]
-
 def train(): 
-    data = Data(cargs.min_size, cargs.max_size)
-    env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
-    bot = Agent(env, args[0], 'bot')
+    data = Data(args.min_size, args.max_size)
+    env = Environment(data.get_random_map(), args.show_screen, args.max_size)
+    bot = Agent(env, args, 'bot')
     
     wl_mean, score_mean, l_val_mean, l_pi_mean =\
         [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(4)]
@@ -78,19 +54,19 @@ def train():
                                 for _ in range(4)]
     cnt_w, cnt_l = 0, 0
     temp_reward = [0] * 2
-    # agent[0].model.load_state_dict(torch.load(checkpoint_path_1, map_location = agent[0].model.device))
+    # bot.model.load_state_dict(torch.load(checkpoint_path_1, map_location = bot.model.device))
     # agent[1].model.load_state_dict(torch.load(checkpoint_path_2, map_location = agent[1].model.device))
         
-    for _ep in range(cargs.n_epochs):
+    for _ep in range(args.n_epochs):
         if _ep % 10 == 9:
             print('Training_epochs: {}'.format(_ep + 1))
-        for _game in range(cargs.n_games):
+        for _game in range(args.n_games):
             done = False
             start = time.time()
             current_state = env.get_observation(0)
             
             for _iter in range(env.n_turns):
-                if cargs.show_screen:
+                if args.show_screen:
                     env.render()
                     
                 """ initialize """
@@ -117,7 +93,7 @@ def train():
                     rewards[1].append(temp_reward[1] - temp_reward[0])
                 # actions[1] = [np.random.randint(0, env.n_actions - 1) for _ in range(env.n_agents)]
                 # actions[1] = [0] * env.n_agents
-                current_state, final_reward, done, _ = env.step(actions[0], actions[1], cargs.show_screen)
+                current_state, final_reward, done, _ = env.step(actions[0], actions[1], args.show_screen)
                 for i in range(env.n_agents):
                     for j in range(env.num_players):
                         bot.model.store(j, log_probs[j][i], state_vals[j][i], rewards[j][i])
@@ -143,21 +119,18 @@ def train():
                     l_pi_mean[i].append(np.mean(l_pi[i]))
             
             env.soft_reset()
-        if _ep % 50 == 49:
-            if cargs.visualize:
+        if _ep % 100 == 99:
+            if args.visualize:
                 plot(wl_mean, vtype = 'Win')
                 plot(score_mean, vtype = 'Score')
                 plot(l_val_mean, vtype = 'Loss_Value')
                 plot(l_pi_mean, vtype = 'Loss_Policy')
                 print("Time: {0: >#.3f}s". format(1000*(end - start)))
-            if args[0].saved_checkpoint:
+            if args.saved_checkpoint:
                 bot.save_models() 
-                # torch.save(agent[0].model.state_dict(), checkpoint_path_1)
-            # if args[1].saved_checkpoint:
-            #     agent[1].save_models()
-                # torch.save(agent[1].model.state_dict(), checkpoint_path_2)
+                # torch.save(bot.model.state_dict(), checkpoint_path_1)
                 # print('Completed episodes')
-        # env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
+        env = Environment(data.get_random_map(), args.show_screen, args.max_size)
         
 if __name__ == "__main__":
      train()
