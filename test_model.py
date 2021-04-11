@@ -21,8 +21,8 @@ from src.utils import plot, dotdict
 cargs = dotdict({
     'run_mode': 'test',
     'visualize': True,
-    'min_size': 9,
-    'max_size': 11,
+    'min_size': 8,
+    'max_size': 8,
     'n_games': 1,
     'num_iters': 20000,
     'n_epochs': 1000000,
@@ -34,7 +34,7 @@ args = [
         dotdict({
             'optimizer': 'adas',
             'lr': 1e-4,
-            'exp_rate': 0.0,
+            'exp_rate': 0.5,
             'gamma': 0.99,
             'tau': 0.01,
             'max_grad_norm': 0.3,
@@ -73,7 +73,7 @@ args = [
 def test(): 
     data = Data(cargs.min_size, cargs.max_size)
     env = Environment(data.get_random_map(), cargs.show_screen, cargs.max_size)
-    agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'bot')]
+    agent = [Agent(env, args[0], 'agent_1'), Agent(env, args[1], 'bot2')]
     wl_mean, score_mean = [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(2)]
     wl, score = [[deque(maxlen = 1000), deque(maxlen = 1000)] for _ in range(2)]
     cnt_w, cnt_l = 0, 0
@@ -104,18 +104,18 @@ def test():
             """ select action for each agent """
             for agent_id in range(env.n_agents):
                 for i in range(env.num_players):
+                    ''' get state to forward '''
                     state_step = env.get_states_for_step(current_state)
                     agent_step = env.get_agent_for_step(agent_id, soft_agent_pos)
-                    act, log_p, state_val = 0, 0, 0
-                    if random.random() < exp_rate[i]:
-                        act, log_p, state_val = agent[i].select_action_by_exp(
-                            state_step, agent_step, pred_acts[i][agent_id])
-                    else:
-                        act, log_p, state_val = agent[i].select_action(state_step, agent_step)
-                            
-                    valid, current_state, reward = env.soft_step(agent_id, current_state, act, soft_agent_pos[0])
-                    current_state, soft_agent_pos = env.get_opn_observation(current_state, soft_agent_pos)
+                    ''' predict from model'''
+                    act, log_p, state_val = agent[i].select_action(state_step, agent_step)
+                    ''' convert state to opponent state '''
+                    env.convert_to_opn_obs(current_state, soft_agent_pos)
+                    ''' storage infomation trainning'''
                     actions[i].append(act)
+                ''' last action to fit next state '''
+                acts = [actions[0][-1], actions[1][-1]]
+                current_state, temp_rewards = env.soft_step_2(agent_id, current_state, acts, soft_agent_pos)
                     
             # actions[1] = [np.random.randint(0, env.n_actions - 1) for _ in range(env.n_agents)]
             # actions[1] = [0] * env.n_agents

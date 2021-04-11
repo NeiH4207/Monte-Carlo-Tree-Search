@@ -14,8 +14,8 @@ from src.utils import plot, dotdict
 args = dotdict({
     'run_mode': 'train',
     'visualize': True,
-    'min_size': 9,
-    'max_size': 11,
+    'min_size': 10,
+    'max_size': 20,
     'n_games': 1,
     'num_iters': 20000,
     'n_epochs': 1000000,
@@ -31,25 +31,24 @@ args = dotdict({
     'batch_size': 256,
     'replay_memory_size': 100000,
     'dropout': 0.6,
-    'initial_epsilon': 0.02,
+    'initial_epsilon': 0.1,
     'final_epsilon': 1e-4,
     'dir': './Models/',
     'show_screen': True,
-    'load_checkpoint': True,
+    'load_checkpoint': False,
     'saved_checkpoint': True
 })
 
 def train(): 
     data = Data(args.min_size, args.max_size)
     env = Environment(data.get_random_map(), args.show_screen, args.max_size)
-    bot = Agent(env, args, 'bot')
+    bot = Agent(env, args, 'bot2')
     
     wl_mean, score_mean, l_val_mean, l_pi_mean =\
         [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(4)]
     wl, score, l_val, l_pi = [[deque(maxlen = 1000), deque(maxlen = 1000)] 
                                 for _ in range(4)]
     cnt_w, cnt_l = 0, 0
-    temp_reward = [0] * 2
     # bot.model.load_state_dict(torch.load(checkpoint_path_1, map_location = bot.model.device))
     # agent[1].model.load_state_dict(torch.load(checkpoint_path_2, map_location = agent[1].model.device))
         
@@ -75,20 +74,23 @@ def train():
                 """ select action for each agent """
                 for agent_id in range(env.n_agents):
                     for i in range(env.num_players):
+                        ''' get state to forward '''
                         state_step = env.get_states_for_step(current_state)
                         agent_step = env.get_agent_for_step(agent_id, soft_agent_pos)
+                        ''' predict from model'''
                         act, log_p, state_val = bot.select_action(state_step, agent_step)
-                                
-                        valid, current_state, reward = env.soft_step(agent_id, current_state, act, soft_agent_pos[0])
-                        current_state, soft_agent_pos = env.get_opn_observation(current_state, soft_agent_pos)
+                        ''' convert state to opponent state '''
+                        env.convert_to_opn_obs(current_state, soft_agent_pos)
+                        ''' storage infomation trainning'''
                         state_vals[i].append(state_val)
-                        temp_reward[i] = reward
                         actions[i].append(act)
                         log_probs[i].append(log_p)
-                    rewards[0].append(temp_reward[0] - temp_reward[1])
-                    rewards[1].append(temp_reward[1] - temp_reward[0])
-                # actions[1] = [np.random.randint(0, env.n_actions - 1) for _ in range(env.n_agents)]
-                # actions[1] = [0] * env.n_agents
+                    ''' last action to fit next state '''
+                    acts = [actions[0][-1], actions[1][-1]]
+                    current_state, temp_rewards = env.soft_step_2(agent_id, current_state, acts, soft_agent_pos)
+                    rewards[0].append(temp_rewards[0] - temp_rewards[1])
+                    rewards[1].append(temp_rewards[1] - temp_rewards[0])
+                    
                 current_state, final_reward, done, _ = env.step(actions[0], actions[1], args.show_screen)
                 for i in range(env.n_agents):
                     for j in range(env.num_players):
@@ -126,7 +128,7 @@ def train():
                 bot.save_models() 
                 # torch.save(bot.model.state_dict(), checkpoint_path_1)
                 # print('Completed episodes')
-        env = Environment(data.get_random_map(), args.show_screen, args.max_size)
+        # env = Environment(data.get_random_map(), args.show_screen, args.max_size)
         
 if __name__ == "__main__":
      train()

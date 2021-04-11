@@ -231,19 +231,19 @@ class Environment(object):
             state[2][1] = temp
         return state
     
-    def get_opn_observation(self, state, agent_pos):
+    def convert_to_opn_obs(self, state, agent_pos):
         """
         Returns opponent observation
         """
-        temp = dcopy(state[1][0])
-        state[1][0] = dcopy(state[1][1])
+        temp = state[1][0]
+        state[1][0] = state[1][1]
         state[1][1] = temp
-        temp = dcopy(state[2][0])
-        state[2][0] = dcopy(state[2][1])
+        temp = state[2][0]
+        state[2][0] = state[2][1]
         state[2][1] = temp
         
-        temp = dcopy(agent_pos[1])
-        agent_pos[1] = dcopy(agent_pos[0])
+        temp = agent_pos[1]
+        agent_pos[1] = agent_pos[0]
         agent_pos[0] = temp
         return state, agent_pos
     
@@ -257,6 +257,7 @@ class Environment(object):
         print("Agent Board 2: ")
         for i in range(self.height):
             print(state[AgentID][1][i][:self.width])
+        print('-----------')
     
     def get_states_for_step(self, states):
         states = np.array(flatten(states), dtype = np.float32)\
@@ -527,6 +528,84 @@ class Environment(object):
             reward = - 0.5
             
         return valid, state, reward
+    
+    def soft_step_2(self, agent_id, state, acts, agent_pos, exp = False):
+        ''' storage old state to compute changed scored '''
+        old_state = dcopy(state)
+        old_scores, old_treasures_scores, area_scores = self.compute_score(old_state, old_state)
+        old_score = old_scores[0] + area_scores[0] - old_scores[1] - area_scores[1]
+        score_board, agent_board, conquer_board, treasure_board, wall_board = state
+        
+        ''' get next action '''
+        x0, y0 = agent_pos[0][agent_id][0], agent_pos[0][agent_id][1]     
+        x1, y1 = self.next_action(x0, y0, acts[0])
+        x2, y2 = agent_pos[1][agent_id][0], agent_pos[1][agent_id][1]     
+        x3, y3 = self.next_action(x2, y2, acts[1])
+        valids = [True, True]
+        
+        ''' invalid checking '''
+        if x1 < 0 or x1 >= self.height or y1 < 0 or y1 >= self.width:
+            x1, y1 = x0, y0
+            valids[0] = False
+        elif wall_board[x1][y1] == 1:
+            x1, y1 = x0, y0
+            valids[0] = False
+        
+        if x3 < 0 or x3 >= self.height or y3 < 0 or y3 >= self.width:
+            x3, y3 = x2, y2
+            valids[1] = False
+        elif wall_board[x3][y3] == 1:
+            x3, y3 = x2, y2
+            valids[1] = False
+            
+        ''' two actions is invalid'''
+        if x1 == x2 and y1 == y2 and x3 == x0 and y3 == y0:
+            return state, [0, 0]
+        
+        ''' conflict to unique square '''
+        if x1 == y1 and x3 == y3:
+            return state, [0, 0]
+        
+        ''' go to conquered square '''
+        if agent_board[0][x1][y1] == 1 or agent_board[1][x1][y1] == 1:
+            x1, y1 = x0, y0
+            valids[0] = False
+            
+        if agent_board[0][x3][y3] == 1 or agent_board[1][x3][y3] == 1:
+            x3, y3 = x2, y2
+            valids[1] = False
+        
+        ''' fit actions '''
+        if conquer_board[1][x1][y1] == 0:
+            agent_board[0][x1][y1] = 1
+            agent_board[0][x0][y0] = 0
+            conquer_board[0][x1][y1] = 1
+            agent_pos[0][agent_id][0] = x1
+            agent_pos[0][agent_id][1] = y1
+        else:
+            conquer_board[1][x1][y1] = 0
+            
+        if conquer_board[0][x3][y3] == 0:
+            agent_board[1][x3][y3] = 1
+            agent_board[1][x2][y2] = 0
+            conquer_board[1][x3][y3] = 1
+            agent_pos[1][agent_id][0] = x3
+            agent_pos[1][agent_id][1] = y3
+        else:
+            conquer_board[1][x1][y1] = 0
+            
+        title_scores, treasures_scores, area_scores = self.compute_score(state, old_state)
+        
+        reward = (title_scores[0] + treasures_scores[0] + area_scores[0]\
+            - title_scores[1] - treasures_scores[1] - area_scores[1] - old_score)
+        
+        rewards = [reward, - reward]
+        if not valids[0]:
+            rewards[0] -= 1
+        if not valids[1]:
+            rewards[1] -= 1
+        
+        return state, rewards
     
     def soft_step_(self, agent_id, state, act, agent_pos):
         score_board, agent_board, conquer_board, treasure_board, wall_board = state
