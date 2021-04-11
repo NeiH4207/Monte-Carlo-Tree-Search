@@ -31,7 +31,7 @@ args = dotdict({
     'batch_size': 256,
     'replay_memory_size': 100000,
     'dropout': 0.6,
-    'initial_epsilon': 0.1,
+    'initial_epsilon': 0.02,
     'final_epsilon': 1e-4,
     'dir': './Models/',
     'show_screen': True,
@@ -46,10 +46,6 @@ def train():
     
     wl_mean, score_mean, l_val_mean, l_pi_mean =\
         [[deque(maxlen = 10000), deque(maxlen = 10000)]  for _ in range(4)]
-    wl_mean.append(0)
-    score_mean.append(0)
-    l_val_mean.append(0)
-    l_pi_mean.append(0)
     wl, score, l_val, l_pi = [[deque(maxlen = 1000), deque(maxlen = 1000)] 
                                 for _ in range(4)]
     cnt_w, cnt_l = 0, 0
@@ -110,10 +106,10 @@ def train():
             if _ep > 3:
                 l_val[0].append(bot.value_loss)
                 l_pi[0].append(bot.policy_loss)
-                wl[0].append(cnt_w)
-                wl[1].append(cnt_l)
+                # wl[0].append(cnt_w)
+                # wl[1].append(cnt_l)
                 for i in range(2):
-                    wl_mean[i].append(np.mean(wl[i]))
+                    # wl_mean[i].append(np.mean(wl[i]))
                     score_mean[i].append(np.mean(score[i]))
                     l_val_mean[i].append(np.mean(l_val[i]))
                     l_pi_mean[i].append(np.mean(l_pi[i]))
@@ -121,7 +117,7 @@ def train():
             env.soft_reset()
         if _ep % 100 == 99:
             if args.visualize:
-                plot(wl_mean, vtype = 'Win')
+                # plot(wl_mean, vtype = 'Win')
                 plot(score_mean, vtype = 'Score')
                 plot(l_val_mean, vtype = 'Loss_Value')
                 plot(l_pi_mean, vtype = 'Loss_Policy')
